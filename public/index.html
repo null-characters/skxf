@@ -6,17 +6,24 @@
     <title>数据看板</title>
     <!-- PWA 全屏模式支持 -->
     <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#1a1a2e">
+    <meta name="theme-color" content="#ED6C00">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
-        /* ===== 显示模式（深色大屏） ===== */
+        :root {
+            --brand: #ED6C00;
+            --brand-dark: #c45a00;
+            --brand-soft: rgba(237, 108, 0, 0.22);
+            --brand-text-on-dark: #ffb366;
+        }
+
+        /* ===== 显示模式（深色大屏 · 品牌暖色分区） ===== */
         body.display-mode {
-            background: #0a0a1a;
-            color: #e0e0e0;
+            background: #100d0a;
+            color: #e8e0d8;
             font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
             height: 100vh;
             overflow: hidden;
@@ -24,10 +31,12 @@
             flex-direction: column;
         }
 
+        /* 顶栏：品牌强调条 */
         body.display-mode .header {
-            background: linear-gradient(135deg, #1a1a3e 0%, #0d0d2b 100%);
+            background: linear-gradient(180deg, #3d2a1a 0%, #24180f 100%);
             padding: 10px 20px;
-            border-bottom: 1px solid #3a3a8a;
+            border-bottom: 3px solid var(--brand);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -37,7 +46,7 @@
 
         body.display-mode .header .time {
             font-size: 14px;
-            color: #8899bb;
+            color: #c4a882;
             white-space: nowrap;
             position: absolute;
             right: 40px;
@@ -45,23 +54,18 @@
 
         body.display-mode .header h1 {
             font-size: 24px;
-            color: #7eb8ff;
-            text-shadow: 0 0 10px rgba(126, 184, 255, 0.3);
+            color: #fff8f0;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45), 0 0 24px var(--brand-soft);
             white-space: nowrap;
             text-align: center;
             width: 100%;
         }
 
-        body.display-mode .header .time {
-            font-size: 14px;
-            color: #8899bb;
-            white-space: nowrap;
-        }
-
         body.display-mode .table-container {
             flex: 1;
-            padding: 8px;
+            padding: 10px;
             overflow: auto;
+            background: linear-gradient(180deg, #1a1510 0%, #12100c 100%);
         }
 
         body.display-mode table {
@@ -70,41 +74,65 @@
             min-width: 100%;
         }
 
+        /* 目录栏（表头）：与顶栏区分的深棕灰 + 弱品牌边线 */
         body.display-mode thead th {
-            background: linear-gradient(180deg, #2a2a6a 0%, #1a1a4a 100%);
-            color: #aaccff;
+            background: linear-gradient(180deg, #2e241c 0%, #231a14 100%);
+            color: var(--brand-text-on-dark);
             font-size: 14px;
             padding: 10px 8px;
-            border: 1px solid #3a3a7a;
+            border: 1px solid rgba(237, 108, 0, 0.35);
             text-align: center;
             font-weight: 600;
             white-space: nowrap;
         }
 
+        /* 数据区 */
         body.display-mode tbody td {
             font-size: 14px;
             padding: 8px 8px;
-            border: 1px solid #2a2a5a;
+            border: 1px solid #2d2418;
             text-align: center;
             transition: background 0.3s;
             white-space: nowrap;
+            color: #e8e0d8;
         }
 
         body.display-mode tbody tr:nth-child(even) td {
-            background: #0f0f2a;
+            background: #1a1612;
         }
 
         body.display-mode tbody tr:nth-child(odd) td {
-            background: #12122e;
+            background: #14110e;
         }
 
         body.display-mode tbody tr:hover td {
-            background: #1a1a4a;
+            background: #252018;
         }
 
         body.display-mode tbody td:first-child {
-            color: #7eb8ff;
-            font-weight: 500;
+            color: var(--brand-text-on-dark);
+            font-weight: 600;
+        }
+
+        /* 项目状态 / 任务状态：按内容着色（大屏深色底） */
+        body.display-mode tbody td.cell-status-ok {
+            color: #69f0ae;
+            font-weight: 600;
+        }
+
+        body.display-mode tbody td.cell-status-late {
+            color: #ff8a80;
+            font-weight: 600;
+        }
+
+        body.display-mode tbody td.cell-status-neutral {
+            color: #ffffff;
+        }
+
+        body.display-mode tbody td:first-child.cell-status-ok,
+        body.display-mode tbody td:first-child.cell-status-late,
+        body.display-mode tbody td:first-child.cell-status-neutral {
+            font-weight: 600;
         }
 
         body.display-mode .status-indicator {
@@ -112,11 +140,11 @@
             bottom: 5px;
             right: 10px;
             font-size: 10px;
-            color: #3a5a3a;
+            color: #5a4a38;
         }
 
         body.display-mode .status-indicator.connected {
-            color: #4a8a4a;
+            color: #7a9a6a;
         }
 
         /* ===== 全屏切换按钮 ===== */
@@ -126,8 +154,8 @@
             right: 5px;
             width: 24px;
             height: 24px;
-            background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(237, 108, 0, 0.2);
+            border: 1px solid rgba(237, 108, 0, 0.45);
             border-radius: 4px;
             cursor: pointer;
             z-index: 9999;
@@ -139,18 +167,18 @@
         }
 
         body.display-mode .fullscreen-btn:hover {
-            background: rgba(255,255,255,0.2);
+            background: rgba(237, 108, 0, 0.35);
         }
 
         body.display-mode .fullscreen-btn svg {
             width: 14px;
             height: 14px;
-            fill: #8899bb;
+            fill: var(--brand-text-on-dark);
         }
 
         /* ===== 编辑模式 ===== */
         body.edit-mode {
-            background: #f5f7fa;
+            background: #f2efe9;
             color: #333;
             font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
             min-height: 100vh;
@@ -158,12 +186,12 @@
 
         body.edit-mode .toolbar {
             background: #fff;
-            border-bottom: 1px solid #ddd;
+            border-bottom: 2px solid var(--brand);
             padding: 12px 24px;
             display: flex;
             align-items: center;
             gap: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            box-shadow: 0 2px 12px rgba(237, 108, 0, 0.08);
         }
 
         body.edit-mode .toolbar h1 {
@@ -188,7 +216,7 @@
         }
 
         body.edit-mode .toolbar input.title-input:focus {
-            border-bottom-color: #4a90d9;
+            border-bottom-color: var(--brand);
         }
 
         body.edit-mode .btn {
@@ -202,12 +230,12 @@
         }
 
         body.edit-mode .btn-primary {
-            background: #4a90d9;
+            background: var(--brand);
             color: #fff;
         }
 
         body.edit-mode .btn-primary:hover {
-            background: #357abd;
+            background: var(--brand-dark);
         }
 
         body.edit-mode .btn-danger {
@@ -242,11 +270,11 @@
         }
 
         body.edit-mode thead th {
-            background: #f0f4f8;
-            color: #555;
+            background: linear-gradient(180deg, #faf6f2 0%, #f2ebe4 100%);
+            color: #4a3528;
             font-size: 14px;
             padding: 12px 16px;
-            border-bottom: 2px solid #ddd;
+            border-bottom: 2px solid rgba(237, 108, 0, 0.35);
             text-align: left;
             font-weight: 600;
         }
@@ -267,8 +295,24 @@
         }
 
         body.edit-mode tbody td input:focus {
-            background: #e8f0fe;
+            background: #fff8f0;
             border-radius: 4px;
+        }
+
+        /* 编辑页：项目状态 / 任务状态列（浅色底，「其他」用深字保证可读） */
+        body.edit-mode tbody td.cell-status-ok input {
+            color: #2e7d32;
+            font-weight: 600;
+        }
+
+        body.edit-mode tbody td.cell-status-late input {
+            color: #c62828;
+            font-weight: 600;
+        }
+
+        body.edit-mode tbody td.cell-status-neutral input {
+            color: #333;
+            font-weight: 500;
         }
 
         body.edit-mode tbody tr:hover td {
@@ -448,6 +492,20 @@
             }
         }
 
+        /** 表头名含「项目状态」「任务状态」的列按单元格文案着色 */
+        function isProjectOrTaskStatusColumn(colName) {
+            const s = String(colName || '');
+            return s.includes('项目状态') || s.includes('任务状态');
+        }
+
+        function statusCellClass(colName, rawValue) {
+            if (!isProjectOrTaskStatusColumn(colName)) return '';
+            const v = String(rawValue == null ? '' : rawValue).trim();
+            if (v === '正常') return 'cell-status-ok';
+            if (v === '延迟') return 'cell-status-late';
+            return 'cell-status-neutral';
+        }
+
         function renderEditMode() {
             if (!document.querySelector('.toolbar')) {
                 document.body.innerHTML = `
@@ -484,7 +542,10 @@
             tableData.rows.forEach(row => {
                 html += '<tr>';
                 row.data.forEach((cell, colIdx) => {
-                    html += `<td><input type="text" value="${escapeHtml(cell)}" 
+                    const colName = tableData.columns[colIdx] || '';
+                    const sc = statusCellClass(colName, cell);
+                    const clsAttr = sc ? ` class="${sc}"` : '';
+                    html += `<td${clsAttr}><input type="text" value="${escapeHtml(cell)}" 
                         onchange="cellChanged(${row.id}, ${colIdx}, this.value)"
                         onfocus="this.select()" /></td>`;
                 });
@@ -526,7 +587,10 @@
             tableData.rows.forEach((row, idx) => {
                 html += '<tr>';
                 row.data.forEach((cell, colIdx) => {
-                    html += `<td>${escapeHtml(cell)}</td>`;
+                    const colName = tableData.columns[colIdx] || '';
+                    const sc = statusCellClass(colName, cell);
+                    const clsAttr = sc ? ` class="${sc}"` : '';
+                    html += `<td${clsAttr}>${escapeHtml(cell)}</td>`;
                 });
                 html += '</tr>';
             });

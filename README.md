@@ -8,7 +8,8 @@
 - **实时同步**：WebSocket 与 HTTP **共用 3000 端口**，编辑端修改后推送到显示端（避免电视端防火墙只放行单端口时 WS 连不上）
 - **HTTP 拉取兜底**：提供 `GET /api/table-state` 返回当前表格 JSON；显示端会首屏拉取并定时刷新，**即使 WebSocket 为 0 在线也能看到 Excel 数据**
 - **零配置**：单文件服务器，无需复杂框架
-- **适配大屏**：显示模式针对 1920x1080 横屏优化
+- **适配大屏**：显示模式针对 1920x1080 横屏优化；界面采用品牌主色 **#ED6C00** 分区配色（顶栏 / 表头 / 数据区）
+- **状态列着色**：表头包含「**项目状态**」或「**任务状态**」的列，大屏上单元格文案为 **正常** 显示绿色、**延迟** 显示红色，其它文案为白色（编辑页为浅色底，其它文案为深色以保证可读）
 
 ---
 
@@ -95,13 +96,26 @@ node server.js
 
 启动成功后，控制台会打印 **`表格 JSON（大屏拉数）: http://localhost:3000/api/table-state`**。若升级了 `server.js` 却看不到该行或接口返回 `Not Found`，请先 **`stop.bat`** 再 **`start.bat`**，确保 3000 端口上是新进程。
 
+**`stop.bat`（Windows）**：会按窗口标题结束由 **`start.bat`** 打开的控制台（标题为 **`SKXF-DataBoard`**，并终止其中的 Node），再按端口清理残留进程；脚本结束后**自动关闭**自身窗口。若你改过 `start.bat` 里的 `title`，请同步修改 `stop.bat` 中的 `taskkill` 标题匹配。
+
+**可选环境变量**（可在 `start.bat` 中 `set`、或在「系统环境变量」中配置，详见 [`docs/SECURITY_AUDIT.md`](docs/SECURITY_AUDIT.md)）：
+
+| 变量 | 作用 |
+|------|------|
+| `PORT` | HTTP/WebSocket 端口，默认 `3000` |
+| `HOST` | 监听地址，默认 `0.0.0.0` |
+| `DASHBOARD_EDIT_TOKEN` | 非本机编辑时，WebSocket 写权限令牌；编辑页使用 `?mode=edit&token=...` |
+| `DASHBOARD_ALLOW_INSECURE_LAN_EDITS` | 设为 `1`/`true` 时任意局域网客户端可改表（**不推荐**） |
+| `DASHBOARD_CORS_ORIGIN` | 需跨域访问 `/api/table-state` 时，填写允许的单一 `Origin` |
+
 ### 第四步：访问应用（无需配置仓库内 IP）
 
 启动成功后，在浏览器访问：
 
 | 模式 | 地址 | 说明 |
 |------|------|------|
-| 编辑模式 | `http://localhost:3000?mode=edit` | 本地编辑表格 |
+| 编辑模式 | `http://localhost:3000?mode=edit` | 本机编辑表格（回环地址默认具备写权限） |
+| 编辑模式（局域网其它电脑） | `http://<服务器 IPv4>:3000?mode=edit&token=<令牌>` | 需服务端已设置 `DASHBOARD_EDIT_TOKEN`，与 URL 中 `token` 一致 |
 | 显示模式 | `http://<运行服务的电脑 IPv4>:3000?mode=display` | 信息发布屏（IPv4 见启动窗口或 `ipconfig`） |
 
 ### 让信息发布屏访问
@@ -113,6 +127,17 @@ node server.js
 
 电视端 **Chrome 异常**（多标签、错误地址、长期白屏）时，可在电视上 **清除 Chrome 应用数据** 或 **卸载更新/重装**，再手动输入上述显示地址。
 
+### 使用 ADB 在 Android 大屏上打开地址（可选）
+
+当电视已开启 **USB 调试** 或 **无线调试**（`adb tcpip 5555` 等），且电脑已安装 [Android Platform Tools](https://developer.android.com/tools/releases/platform-tools)（`adb`）时，可在电脑上执行：
+
+```cmd
+adb connect <电视IPv4>:5555
+adb shell am start -a android.intent.action.VIEW -d "http://<运行服务的电脑IPv4>:3000/?mode=display"
+```
+
+示例：电视 `192.168.0.158`、服务电脑 `192.168.0.188` 时，最后一行 URL 为 `http://192.168.0.188:3000/?mode=display`。请先保证 **`start.bat` 已运行** 且防火墙放行 **3000**。
+
 ---
 
 ## 同步机制与接口
@@ -123,6 +148,7 @@ node server.js
 | **`GET /api/table-state`** | 返回当前内存中的表格 JSON，可用于自检或大屏 HTTP 拉取。 |
 | **显示端轮询** | 显示模式约每 **8 秒** 请求一次 `/api/table-state`，WebSocket 不可用时仍能更新表体。 |
 | **编辑端** | 首屏 HTTP 拉取；编辑以 WebSocket 为主，避免轮询覆盖未保存编辑。 |
+| **写权限** | 默认仅 **本机回环** 的 WebSocket 可修改表格；局域网大屏为只读。非本机编辑需配置 `DASHBOARD_EDIT_TOKEN`。详见 [`docs/SECURITY_AUDIT.md`](docs/SECURITY_AUDIT.md)。 |
 
 ---
 
@@ -163,6 +189,8 @@ node server.js
 
 或运行 `./start.sh` 一键启动（首次运行会自动安装依赖）。启动脚本会打印本机 IP，**信息发布屏请在电视浏览器中手动输入** `http://<该IP>:3000/?mode=display`。
 
+停止服务可使用 `./stop.sh`。环境变量（`PORT`、`DASHBOARD_EDIT_TOKEN` 等）与 Windows 相同，可在启动前 `export` 或写入 shell 配置；说明见 [`docs/SECURITY_AUDIT.md`](docs/SECURITY_AUDIT.md)。
+
 ---
 
 ## 项目结构
@@ -171,12 +199,14 @@ node server.js
 skxf/
 ├── server.js           # Node.js 服务器（HTTP + WebSocket）
 ├── public/
-│   └── index.html      # 单页面应用
+│   └── index.html      # 单页面应用（显示/编辑、品牌色与状态列样式）
+├── docs/
+│   └── SECURITY_AUDIT.md  # 安全与边界审查留痕（威胁模型、环境变量、缓解措施）
 ├── data/               # Excel 数据文件目录
 ├── package.json        # npm 配置及依赖声明
 ├── start.bat           # Windows 一键启动脚本
 ├── start.sh            # macOS/Linux 一键启动脚本
-├── stop.bat            # Windows 停止服务脚本
+├── stop.bat            # Windows：结束 start 窗口 + 按端口清理，执行完自动退出
 ├── stop.sh             # macOS/Linux 停止服务脚本
 └── README.md           # 本文件
 ```
@@ -189,17 +219,18 @@ skxf/
 
 ### 编辑模式
 
-1. 在本地浏览器打开 `http://localhost:3000?mode=edit`
-2. 直接点击单元格编辑内容
-3. 点击行可选中，使用工具栏添加/删除行
-4. 所有修改自动同步到显示端
+1. **本机**：浏览器打开 `http://localhost:3000?mode=edit`  
+2. **局域网其它电脑**：服务端设置 `DASHBOARD_EDIT_TOKEN` 后，使用 `http://<服务器IP>:3000?mode=edit&token=<同一令牌>`  
+3. 直接点击单元格编辑内容；工具栏可 **添加行**（删除行在表格右侧）  
+4. 修改通过 WebSocket 推送到已打开的显示端；未设令牌时，非本机连接无法保存写操作
 
 ### 显示模式
 
 1. 在信息发布屏打开 `http://<服务器IP>:3000?mode=display`
 2. 页面全屏显示表格数据（首屏及约每 8 秒通过 **`/api/table-state`** 与内存同步；WebSocket 在线时编辑可近乎实时更新）
-3. 深色主题，大字体，适合远距离观看
-4. 自动接收编辑端推送的数据更新（WebSocket）
+3. **深色暖色主题**：顶栏、表头、数据区层次区分；品牌色 **#ED6C00** 用于强调条与点缀
+4. **状态列**：列名含「项目状态」「任务状态」时，**正常**（绿）、**延迟**（红）、其它字（大屏为白）
+5. 自动接收编辑端推送的数据更新（WebSocket）；右上角可切换全屏
 
 ## 数据来源
 
@@ -214,7 +245,8 @@ skxf/
 ## 注意事项
 
 - **首次运行需联网**：项目不包含 `node_modules`，首次启动需联网执行 `npm install` 安装依赖
-- 数据存储在服务端内存中，重启服务器后数据将重置
+- 数据存储在服务端内存中，重启服务器后数据将重置；**Excel 文件变更会重新加载并覆盖内存**（与 [`docs/SECURITY_AUDIT.md`](docs/SECURITY_AUDIT.md) 中说明一致）
+- **安全**：默认大屏所在网络中的设备**不能**通过 WebSocket 匿名改表；生产环境请阅读 **`docs/SECURITY_AUDIT.md`**，按需配置令牌、防火墙或 CORS
 - 如需持久化存储，可扩展使用文件或数据库
 
 ## License
