@@ -8,27 +8,7 @@ const PORT = 3000;
 const HOST = '0.0.0.0';
 const EXCEL_FILE = path.join(__dirname, 'data/excel/研发项目看板2026.xlsx');
 
-function loadDisplayHost() {
-    const configPath = path.join(__dirname, 'config.json');
-    try {
-        if (!fs.existsSync(configPath)) return '';
-        const j = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-        const h = typeof j.displayHost === 'string' ? j.displayHost.trim() : '';
-        if (!h) return '';
-        if (h.length > 253 || !/^[\w.-]+$/.test(h)) {
-            console.warn('config.json 中 displayHost 格式无效，已忽略');
-            return '';
-        }
-        return h;
-    } catch (e) {
-        console.warn('读取 config.json 失败:', e.message);
-        return '';
-    }
-}
-
-const displayHost = loadDisplayHost();
-
-// 本机所有局域网 IPv4（多网卡时只打印第一个容易填错地址）
+// 本机所有局域网 IPv4（启动时打印，供电视浏览器填写；项目内无 IP 配置文件）
 const os = require('os');
 const interfaces = os.networkInterfaces();
 const lanIPv4List = [];
@@ -39,8 +19,6 @@ for (const name of Object.keys(interfaces)) {
         }
     }
 }
-const localIP = lanIPv4List[0] || 'localhost';
-
 // 默认表格数据（Excel读取失败时回退）
 const defaultTableData = {
     title: '数据看板',
@@ -230,9 +208,8 @@ function serveIndexHtml(res) {
             res.end('Error loading file');
             return;
         }
-        const html = data.replace('___SKXF_DISPLAY_HOST_JSON___', JSON.stringify(displayHost));
         res.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
-        res.end(html);
+        res.end(data);
     });
 }
 
@@ -337,18 +314,10 @@ server.listen(PORT, HOST, () => {
     console.log(`========================================`);
     console.log(`  编辑页面（本地）: http://localhost:${PORT}?mode=edit`);
     console.log(`  表格 JSON（大屏拉数）: http://localhost:${PORT}/api/table-state`);
-    if (displayHost) {
-        console.log(`  固定显示地址（config.json displayHost）:`);
-        console.log(`    http://${displayHost}:${PORT}/?mode=display`);
-        if (lanIPv4List.length && !lanIPv4List.includes(displayHost)) {
-            console.warn(`  [警告] 当前网卡 IPv4 为 [${lanIPv4List.join(', ')}]，与 displayHost 不一致。`);
-            console.warn(`          请在 Windows 中为「运行本服务的网卡」设置与 displayHost 相同的静态 IP，或修改 config.json。`);
-        }
-    } else if (lanIPv4List.length === 0) {
-        console.log(`  显示页面（设备）: http://<本机局域网IP>:${PORT}/?mode=display`);
-        console.log(`  （建议：为服务器设置静态 IP 后，复制 config.example.json 为 config.json 并填写 displayHost）`);
+    if (lanIPv4List.length === 0) {
+        console.log(`  显示页面（设备）: http://<本机局域网IPv4>:${PORT}/?mode=display  （本机 ipconfig 查看）`);
     } else {
-        console.log(`  显示页面（设备，DHCP 下地址可能变化；建议静态 IP + config.json）:`);
+        console.log(`  显示页面（设备，在电视浏览器中任选可达的本机地址）:`);
         lanIPv4List.forEach((ip) => {
             console.log(`    http://${ip}:${PORT}/?mode=display`);
         });

@@ -3,5 +3,6 @@ node_modules/
 *.xlsx
 .DS_Store
 __MACOSX/
-config.json
 .cursor-android-screen.png
+# 旧版遗留的本地文件，可手动删除；勿提交
+config.json

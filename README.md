@@ -35,11 +35,9 @@
 
 直观说法可以是「在本机 3000 端口提供服务，局域网里能访问该 IP 的设备都可以连上来取数」；严谨说法是 **TCP 监听 + 客户端主动连接**，而非无线电式广播。
 
-### 是否必须在项目里配置 IP？
+### 项目里有没有「IP 配置文件」？
 
-**不必须。** `config.json` 里的 **`displayHost`** 只影响：启动时的文字提示、编辑页底部提示、ADB 一键打开电视时的 URL。**不配也能用**：启动后看 **`ipconfig`** 或控制台打印的 IPv4，在电视上手动输入 **`http://该IP:3000/?mode=display`** 即可。
-
-需要省事时，可运行 **`sync-display-host.bat`** 把当前机 IPv4 写入 `config.json`，或给本机设 **静态 IP**，减少 DHCP 变更后电视书签失效。
+**没有。** 服务只监听 `0.0.0.0:3000`，不在仓库里读写任何 IP。启动后看控制台或 **`ipconfig`**，在电视上输入 **`http://该电脑IPv4:3000/?mode=display`** 即可。若希望电视书签长期不变，可在 **Windows / 路由器** 上给这台电脑做 **固定 IPv4**（与项目代码无关）。
 
 ### 电视上的地址到底是谁的 IP？
 
@@ -97,98 +95,49 @@ node server.js
 
 启动成功后，控制台会打印 **`表格 JSON（大屏拉数）: http://localhost:3000/api/table-state`**。若升级了 `server.js` 却看不到该行或接口返回 `Not Found`，请先 **`stop.bat`** 再 **`start.bat`**，确保 3000 端口上是新进程。
 
-### 第四步：固定局域网 IP（强烈推荐）
-
-信息发布屏、平板等设备上要长期填写同一个地址，**请给运行本服务的电脑在路由器所在网段设置「静态 IP」**（或在路由器里做 DHCP 固定分配），例如固定为 `192.168.0.205`。  
-Windows 示例：**设置 → 网络和 Internet → WLAN → 硬件属性 / 编辑 IP 分配 → 手动**，填入与路由器同网段的 IP、子网掩码、网关与 DNS。
-
-### 第五步：配置 `config.json`
-
-复制 `config.example.json` 为 `config.json`（`config.json` 已加入 `.gitignore`，不会提交到 Git）。
-
-| 字段 | 含义 | 示例 |
-|------|------|------|
-| **`displayHost`** | **运行本服务的电脑** 在局域网中的 IP（电视浏览器要连它） | `192.168.0.188` |
-| **`adbDevice`** | **Android 显示设备** 的 adb 地址（仅用于 `configure-android-display` 脚本） | `192.168.0.158:5555` |
-
-注意：**不要把 `displayHost` 写成电视的 IP（如 158）**，否则页面会去访问电视本机的 3000 端口，而不是电脑上的 Node 服务。
-
-改完后重启 `node server.js`。若未创建 `config.json`，启动时仍会列出当前网卡检测到的 IPv4。
-
-**是否必须配置 IP？** **不是。** 服务监听 `0.0.0.0:3000`，不填 `config.json` 也能运行。你只要 **`start.bat` 启动后**，在电视上用浏览器打开 **`http://<本机 IPv4>:3000/?mode=display`** 即可（IPv4 在 `cmd` 里执行 **`ipconfig`** 查看，或看启动窗口里打印的地址列表）。
-
-若希望 **自动把当前电脑的 IPv4 写入 `config.json`**（方便编辑页提示、ADB 一键开电视），可双击 **`sync-display-host.bat`**，再启动服务。
-
-### 第六步：访问应用
+### 第四步：访问应用（无需配置仓库内 IP）
 
 启动成功后，在浏览器访问：
 
 | 模式 | 地址 | 说明 |
 |------|------|------|
 | 编辑模式 | `http://localhost:3000?mode=edit` | 本地编辑表格 |
-| 显示模式 | `http://<displayHost 或本机IP>:3000?mode=display` | 信息发布屏显示 |
-
-> 推荐始终使用 **`config.json` 中的 `displayHost`**，与电脑静态 IP 保持一致。
+| 显示模式 | `http://<运行服务的电脑 IPv4>:3000?mode=display` | 信息发布屏（IPv4 见启动窗口或 `ipconfig`） |
 
 ### 让信息发布屏访问
 
-1. **本机 IP**：与 `config.json` 的 `displayHost` 一致（静态 IP）
-2. **开放防火墙**：首次启动时 Windows 防火墙会弹窗，选择 **"允许访问"**
-3. **设备访问**：在信息发布屏浏览器输入 `http://<displayHost>:3000?mode=display`
+1. **开放防火墙**：首次启动时 Windows 防火墙弹窗请选择 **允许访问**（专用网络）
+2. **电视浏览器** 输入 **`http://<电脑 IPv4>:3000/?mode=display`**，其中 IPv4 为运行 **`start.bat` 的那台电脑** 的局域网地址（不是电视自己的 IP）
 
-### 用 ADB 一键打开显示端（可选）
+若希望电视书签**长期不变**，可在系统或路由器上为该电脑绑定 **固定 IPv4**（与项目代码无关）。
 
-电脑已安装 **Platform Tools（adb）** 且与电视在同一局域网时，可在项目目录执行：
-
-```cmd
-configure-android-display.bat
-```
-
-脚本会读取 `config.json` 里的 **`adbDevice`**（默认示例为 `192.168.0.158:5555`）、`adb connect`、结束 Chrome，并打开  
-`http://<displayHost>:3000/?mode=display`。
-
-临时指定别的 adb 地址（覆盖配置）：
-
-```cmd
-configure-android-display.bat -Device 192.168.0.158:5555
-```
-
-若电视端 **画面一直不变**、或曾用错误脚本打开过页面：Chrome 里可能堆了多个标签（含 `192.168.0.205`、或 URL 被拼进 `-n` 的坏地址）。请用 **清除 Chrome 数据** 后只开一页（会清空该设备 Chrome 的登录与书签）：
-
-```cmd
-powershell -NoProfile -ExecutionPolicy Bypass -File configure-android-display.ps1 -ResetChrome
-```
+电视端 **Chrome 异常**（多标签、错误地址、长期白屏）时，可在电视上 **清除 Chrome 应用数据** 或 **卸载更新/重装**，再手动输入上述显示地址。
 
 ---
 
-## 同步机制与接口（更新进度摘要）
+## 同步机制与接口
 
 | 能力 | 说明 |
 |------|------|
-| **WebSocket** | 与页面同源（`ws://<页面 host>/`），编辑与显示实时一致；日志中 **`数据已广播: N 个`** 的 `N` 为当前在线客户端数。 |
-| **`GET /api/table-state`** | 返回服务端内存中的完整表格（与 Excel 解析结果一致）；浏览器可直接打开该地址检查是否有 JSON。 |
-| **显示端轮询** | 显示模式下约每 **8 秒** 请求一次 `/api/table-state`，Excel 变更或 WS 异常时大屏仍能逐步更新。 |
-| **编辑端** | 仅首屏通过 HTTP 拉取；编辑仍以 WebSocket 为主，避免轮询覆盖正在修改的单元格。 |
+| **WebSocket** | 与页面同源（`ws://<页面 host>/`）；日志 **`数据已广播: N 个`** 中 `N` 为当前在线客户端数。 |
+| **`GET /api/table-state`** | 返回当前内存中的表格 JSON，可用于自检或大屏 HTTP 拉取。 |
+| **显示端轮询** | 显示模式约每 **8 秒** 请求一次 `/api/table-state`，WebSocket 不可用时仍能更新表体。 |
+| **编辑端** | 首屏 HTTP 拉取；编辑以 WebSocket 为主，避免轮询覆盖未保存编辑。 |
 
 ---
 
 ## 故障排除（常见问题）
 
-1. **电视能 ping 通电脑，但网页一直加载、表体空白**  
-   - 确认地址是 **`http://<电脑IP>:3000`**（不要用 `https://`）。  
-   - **`displayHost` 必须是运行 Node 的电脑 IP**，不能填电视 IP。  
-   - 本机打开 `http://<电脑IP>:3000/api/table-state` 应看到 JSON；若 **`Not Found`**：先 **`stop.bat`** 再 **`start.bat`**。  
-   - 若装了 **Clash 等代理**，请对 **局域网 `192.168.x.x` 使用直连**，避免劫持 HTTP/WS。
+1. **电视网页空白或加载失败**  
+   - 使用 **`http://`**，地址必须是 **运行服务的电脑 IPv4**，不是电视 IP。  
+   - 本机访问 `http://127.0.0.1:3000/api/table-state` 应有 JSON；若 **`Not Found`**：先 **`stop.bat`** 再 **`start.bat`**。  
+   - **Clash 等代理** 请对局域网 **直连**。
 
 2. **`数据已广播: 0 个 WebSocket 客户端`**  
-   - 表示当时没有浏览器连上 WS；显示端仍可依赖 **`/api/table-state`** 与定时拉取显示数据。  
-   - 可检查电视 Chrome 是否省电限制、多标签卡住；必要时 **`configure-android-display.ps1 -ResetChrome`**。
+   - 无 WS 时大屏仍靠 **`/api/table-state`** 轮询更新。
 
-3. **ADB 打开 Chrome 后地址异常（URL 带 `%20-n` 等）**  
-   - 请使用项目内的 **`configure-android-display.bat`**（`am start` 参数已按正确方式传递），勿把整条命令包在一层错误的引号里。
-
-4. **端口被占用（`EADDRINUSE`）**  
-   - 运行 **`stop.bat`** 或结束占用 3000 端口的 Node 进程后再启动。
+3. **`EADDRINUSE`**  
+   - 运行 **`stop.bat`** 后再启动。
 
 ---
 
@@ -212,7 +161,7 @@ npm install
 node server.js
 ```
 
-或运行 `./start.sh` 一键启动（首次运行会自动安装依赖）。
+或运行 `./start.sh` 一键启动（首次运行会自动安装依赖）。启动脚本会打印本机 IP，**信息发布屏请在电视浏览器中手动输入** `http://<该IP>:3000/?mode=display`。
 
 ---
 
@@ -224,11 +173,8 @@ skxf/
 ├── public/
 │   └── index.html      # 单页面应用
 ├── data/               # Excel 数据文件目录
-├── config.example.json # 复制为 config.json，填写固定 displayHost
 ├── package.json        # npm 配置及依赖声明
 ├── start.bat           # Windows 一键启动脚本
-├── configure-android-display.bat / .ps1  # ADB 打开显示页；支持 -ResetChrome
-├── sync-display-host.bat / .ps1          # 可选：将本机 IPv4 写入 config.json 的 displayHost
 ├── start.sh            # macOS/Linux 一键启动脚本
 ├── stop.bat            # Windows 停止服务脚本
 ├── stop.sh             # macOS/Linux 停止服务脚本

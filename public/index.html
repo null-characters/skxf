@@ -331,13 +331,9 @@
 </head>
 <body>
     <script>
-        window.__SKXF_DISPLAY_HOST__ = ___SKXF_DISPLAY_HOST_JSON___;
         const params = new URLSearchParams(window.location.search);
         const mode = params.get('mode') || 'display';
         const isEditMode = mode === 'edit';
-        const hintDisplayHost = (window.__SKXF_DISPLAY_HOST__ && String(window.__SKXF_DISPLAY_HOST__).length)
-            ? window.__SKXF_DISPLAY_HOST__
-            : location.hostname;
 
         document.body.className = isEditMode ? 'edit-mode' : 'display-mode';
 
@@ -425,7 +421,7 @@
                     <div class="content">
                         <table id="editTable"></table>
                         <div class="info-bar">
-                            💡 在设备浏览器中打开 <code>http://${hintDisplayHost}:3000/?mode=display</code> 即可实时显示此表格
+                            💡 信息发布屏请打开 <code>http://（运行 start.bat 的电脑 IPv4）:3000/?mode=display</code>；本机编辑时可直接用 <code>http://${location.hostname}:3000/?mode=display</code>
                         </div>
                     </div>
                 `;
