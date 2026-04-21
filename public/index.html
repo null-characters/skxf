@@ -2,11 +2,11 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>数据看板</title>
     <!-- PWA 全屏模式支持 -->
     <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#ED6C00">
+    <meta name="theme-color" content="#FF6600">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -14,362 +14,483 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         :root {
-            --brand: #ED6C00;
+            --brand: #FF6600;
+            /* 整页底色改为品牌色 */
+            --brand-vivid: #FF6600;
             --brand-dark: #c45a00;
-            --brand-soft: rgba(237, 108, 0, 0.22);
-            --brand-text-on-dark: #ffb366;
+            --brand-deep: #b34700;
+            /* 整页铺满：单色品牌橙 */
+            --page-orange-full: #FF6600;
+            --glass-line: rgba(255, 255, 255, 0.28);
+            --glass-fill: rgba(0, 0, 0, 0.18);
+            --glass-fill-strong: rgba(0, 0, 0, 0.32);
+            --text-on-orange: rgba(255, 255, 255, 0.96);
+            --text-on-orange-muted: rgba(255, 248, 240, 0.82);
+            --radius-lg: 14px;
         }
 
-        /* ===== 显示模式（深色大屏 · 品牌暖色分区） ===== */
+        /* ===== 显示模式（深橙铺满界面 #FF6633 ~ #ED6C00） ===== */
         body.display-mode {
-            background: #100d0a;
-            color: #e8e0d8;
-            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            background: var(--page-orange-full);
+            background-color: var(--brand-vivid);
+            color: var(--text-on-orange);
+            font-family: 'Microsoft YaHei', 'PingFang SC', 'Segoe UI', sans-serif;
             height: 100vh;
+            height: 100dvh;
             overflow: hidden;
             display: flex;
             flex-direction: column;
+            -webkit-font-smoothing: antialiased;
+            padding:
+                max(6px, env(safe-area-inset-top, 0px))
+                max(6px, env(safe-area-inset-right, 0px))
+                max(6px, env(safe-area-inset-bottom, 0px))
+                max(6px, env(safe-area-inset-left, 0px));
+            box-sizing: border-box;
         }
 
-        /* 顶栏：品牌强调条 */
+        /* 电视过扫描常裁掉四周：整块 UI 略缩小并居中，右侧整栏不再落在物理裁切区 */
+        body.display-mode .display-safe {
+            flex: 1 1 0%;
+            min-width: 0;
+            min-height: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        body.display-mode .display-safe-inner {
+            flex: 1 1 0%;
+            min-width: 0;
+            min-height: 0;
+            width: calc(100% / 0.86);
+            max-width: calc(100% / 0.86);
+            display: flex;
+            flex-direction: column;
+            transform: scale(0.86);
+            transform-origin: top center;
+        }
+
         body.display-mode .header {
-            background: linear-gradient(180deg, #3d2a1a 0%, #24180f 100%);
-            padding: 10px 20px;
-            border-bottom: 3px solid var(--brand);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+            background: linear-gradient(180deg, rgba(0, 0, 0, 0.12) 0%, rgba(0, 0, 0, 0.06) 100%);
+            padding: 14px 24px;
+            padding-right: max(56px, env(safe-area-inset-right, 0px), 48px);
+            border-bottom: 2px solid var(--glass-line);
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
             display: flex;
             align-items: center;
             justify-content: center;
             position: relative;
             flex-shrink: 0;
+            min-width: 0;
         }
 
         body.display-mode .header .time {
             font-size: 14px;
-            color: #c4a882;
+            font-weight: 500;
+            color: var(--text-on-orange-muted);
             white-space: nowrap;
             position: absolute;
-            right: 40px;
+            /* 右上角有全屏按钮：时间整体左移，避免秒被遮挡 */
+            right: max(56px, env(safe-area-inset-right, 0px), 48px);
+            letter-spacing: 0.02em;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
         }
 
         body.display-mode .header h1 {
-            font-size: 24px;
-            color: #fff8f0;
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45), 0 0 24px var(--brand-soft);
+            font-size: 26px;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: 0.04em;
             white-space: nowrap;
             text-align: center;
             width: 100%;
+            text-shadow: 0 2px 12px rgba(0, 0, 0, 0.28);
         }
 
         body.display-mode .table-container {
-            flex: 1;
-            padding: 10px;
-            overflow: auto;
-            background: linear-gradient(180deg, #1a1510 0%, #12100c 100%);
+            flex: 1 1 0%;
+            min-width: 0;
+            min-height: 0;
+            padding: 8px 0 4px 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            background: transparent;
         }
 
-        body.display-mode table {
+        /* 横向滚动只发生在此层，避免外层 flex/过扫描一起把最右列“吃掉” */
+        body.display-mode .table-x-scroll {
+            flex: 1 1 0%;
+            min-width: 0;
+            min-height: 0;
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+
+        body.display-mode .table-x-scroll table {
+            width: auto;
+            min-width: 100%;
             border-collapse: collapse;
             table-layout: auto;
-            min-width: 100%;
+            background: var(--glass-fill);
         }
 
-        /* 目录栏（表头）：与顶栏区分的深棕灰 + 弱品牌边线 */
         body.display-mode thead th {
-            background: linear-gradient(180deg, #2e241c 0%, #231a14 100%);
-            color: var(--brand-text-on-dark);
-            font-size: 14px;
-            padding: 10px 8px;
-            border: 1px solid rgba(237, 108, 0, 0.35);
+            background: var(--glass-fill-strong);
+            color: #fff8f0;
+            font-size: 15px;
+            padding: 12px 10px;
+            border-bottom: 2px solid var(--glass-line);
             text-align: center;
-            font-weight: 600;
+            font-weight: 700;
             white-space: nowrap;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
         }
 
-        /* 数据区 */
         body.display-mode tbody td {
-            font-size: 14px;
-            padding: 8px 8px;
-            border: 1px solid #2d2418;
+            font-size: 15px;
+            padding: 10px 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
             text-align: center;
-            transition: background 0.3s;
+            transition: background 0.2s;
             white-space: nowrap;
-            color: #e8e0d8;
+            color: var(--text-on-orange);
         }
 
         body.display-mode tbody tr:nth-child(even) td {
-            background: #1a1612;
+            background: rgba(255, 255, 255, 0.1);
         }
 
         body.display-mode tbody tr:nth-child(odd) td {
-            background: #14110e;
+            background: rgba(255, 255, 255, 0.05);
         }
 
         body.display-mode tbody tr:hover td {
-            background: #252018;
+            background: rgba(255, 255, 255, 0.18);
         }
 
         body.display-mode tbody td:first-child {
-            color: var(--brand-text-on-dark);
-            font-weight: 600;
+            color: #fffde7;
+            font-weight: 700;
         }
 
-        /* 项目状态 / 任务状态：按内容着色（大屏深色底） */
         body.display-mode tbody td.cell-status-ok {
-            color: #69f0ae;
-            font-weight: 600;
+            /* 仅靠字体颜色区分：正常=绿 */
+            color: #00e676;
+            font-weight: 800;
+            background: transparent !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
         }
 
         body.display-mode tbody td.cell-status-late {
-            color: #ff8a80;
-            font-weight: 600;
+            /* 仅靠字体颜色区分：延迟=深红（避免与橙底混） */
+            color: #ff1744;
+            font-weight: 800;
+            background: transparent !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.32);
         }
 
         body.display-mode tbody td.cell-status-neutral {
             color: #ffffff;
+            font-weight: 600;
         }
 
         body.display-mode tbody td:first-child.cell-status-ok,
         body.display-mode tbody td:first-child.cell-status-late,
         body.display-mode tbody td:first-child.cell-status-neutral {
-            font-weight: 600;
+            font-weight: 700;
         }
 
+        /* 放左下角，避免盖住表格最右侧列（原右下角常与末列重叠） */
         body.display-mode .status-indicator {
             position: fixed;
-            bottom: 5px;
-            right: 10px;
-            font-size: 10px;
-            color: #5a4a38;
+            bottom: max(10px, env(safe-area-inset-bottom, 0px), 8px);
+            left: max(14px, env(safe-area-inset-left, 0px), 12px);
+            right: auto;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-on-orange-muted);
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+            pointer-events: none;
         }
 
         body.display-mode .status-indicator.connected {
-            color: #7a9a6a;
+            color: #c8e6c9;
         }
 
-        /* ===== 全屏切换按钮 ===== */
         body.display-mode .fullscreen-btn {
             position: fixed;
-            top: 5px;
-            right: 5px;
-            width: 24px;
-            height: 24px;
-            background: rgba(237, 108, 0, 0.2);
-            border: 1px solid rgba(237, 108, 0, 0.45);
-            border-radius: 4px;
+            top: max(10px, env(safe-area-inset-top, 0px), 8px);
+            right: max(10px, env(safe-area-inset-right, 0px), 8px);
+            width: 32px;
+            height: 32px;
+            background: var(--glass-fill-strong);
+            border: 1px solid var(--glass-line);
+            border-radius: 8px;
             cursor: pointer;
             z-index: 9999;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: background 0.2s;
-            backdrop-filter: blur(4px);
+            transition: background 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
         }
 
         body.display-mode .fullscreen-btn:hover {
-            background: rgba(237, 108, 0, 0.35);
+            background: rgba(0, 0, 0, 0.42);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
         }
 
         body.display-mode .fullscreen-btn svg {
-            width: 14px;
-            height: 14px;
-            fill: var(--brand-text-on-dark);
+            width: 16px;
+            height: 16px;
+            fill: #fff;
         }
 
-        /* ===== 编辑模式 ===== */
+        /* ===== 编辑模式（与大屏同系深橙铺满） ===== */
         body.edit-mode {
-            background: #f2efe9;
-            color: #333;
-            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            background: var(--page-orange-full);
+            background-color: var(--brand-vivid);
+            color: var(--text-on-orange);
+            font-family: 'Microsoft YaHei', 'PingFang SC', 'Segoe UI', sans-serif;
             min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
         }
 
         body.edit-mode .toolbar {
-            background: #fff;
-            border-bottom: 2px solid var(--brand);
-            padding: 12px 24px;
+            background: linear-gradient(180deg, rgba(0, 0, 0, 0.14) 0%, rgba(0, 0, 0, 0.08) 100%);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-bottom: 2px solid var(--glass-line);
+            padding: 14px 24px;
             display: flex;
             align-items: center;
-            gap: 12px;
-            box-shadow: 0 2px 12px rgba(237, 108, 0, 0.08);
+            gap: 14px;
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15);
         }
 
         body.edit-mode .toolbar h1 {
             font-size: 20px;
-            color: #333;
+            color: #fff;
             margin-right: auto;
+            text-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
         }
 
         body.edit-mode .toolbar input.title-input {
             font-size: 20px;
-            color: #333;
+            font-weight: 600;
+            color: #fff;
             border: none;
             border-bottom: 2px solid transparent;
             background: transparent;
             outline: none;
             margin-right: auto;
-            padding: 4px 8px;
+            padding: 6px 8px;
+        }
+
+        body.edit-mode .toolbar input.title-input::placeholder {
+            color: var(--text-on-orange-muted);
+            font-weight: 400;
         }
 
         body.edit-mode .toolbar input.title-input:hover {
-            border-bottom-color: #ddd;
+            border-bottom-color: rgba(255, 255, 255, 0.35);
         }
 
         body.edit-mode .toolbar input.title-input:focus {
-            border-bottom-color: var(--brand);
+            border-bottom-color: #fff;
         }
 
         body.edit-mode .btn {
-            padding: 8px 16px;
+            padding: 9px 18px;
             border: none;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 14px;
-            font-weight: 500;
-            transition: all 0.2s;
+            font-weight: 600;
+            transition: transform 0.15s, box-shadow 0.2s;
+        }
+
+        body.edit-mode .btn:active {
+            transform: scale(0.98);
         }
 
         body.edit-mode .btn-primary {
-            background: var(--brand);
+            background: rgba(0, 0, 0, 0.35);
             color: #fff;
+            border: 1px solid var(--glass-line);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
         }
 
         body.edit-mode .btn-primary:hover {
-            background: var(--brand-dark);
+            background: rgba(0, 0, 0, 0.48);
         }
 
         body.edit-mode .btn-danger {
-            background: #e74c3c;
+            background: #c62828;
             color: #fff;
         }
 
         body.edit-mode .btn-danger:hover {
-            background: #c0392b;
+            background: #b71c1c;
         }
 
         body.edit-mode .btn-success {
-            background: #27ae60;
+            background: rgba(0, 0, 0, 0.4);
             color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
         }
 
         body.edit-mode .btn-success:hover {
-            background: #219a52;
+            background: rgba(0, 0, 0, 0.52);
         }
 
         body.edit-mode .content {
             padding: 24px;
+            max-width: 1600px;
+            margin: 0 auto;
+            overflow-x: auto;
         }
 
         body.edit-mode table {
             width: 100%;
             border-collapse: collapse;
-            background: #fff;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            table-layout: auto;
+            background: var(--glass-fill);
         }
 
         body.edit-mode thead th {
-            background: linear-gradient(180deg, #faf6f2 0%, #f2ebe4 100%);
-            color: #4a3528;
+            background: var(--glass-fill-strong);
+            color: #fff8f0;
             font-size: 14px;
-            padding: 12px 16px;
-            border-bottom: 2px solid rgba(237, 108, 0, 0.35);
+            padding: 14px 16px;
+            border-bottom: 2px solid var(--glass-line);
             text-align: left;
-            font-weight: 600;
+            font-weight: 700;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
         }
 
         body.edit-mode tbody td {
-            padding: 4px 8px;
-            border-bottom: 1px solid #eee;
+            padding: 6px 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
             position: relative;
+        }
+
+        body.edit-mode tbody tr:nth-child(even) td {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        body.edit-mode tbody tr:nth-child(odd) td {
+            background: rgba(255, 255, 255, 0.05);
         }
 
         body.edit-mode tbody td input {
             width: 100%;
             border: none;
-            padding: 8px;
+            padding: 10px 8px;
             font-size: 14px;
             background: transparent;
             outline: none;
+            color: var(--text-on-orange);
         }
 
         body.edit-mode tbody td input:focus {
-            background: #fff8f0;
-            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.22);
+            border-radius: 6px;
+            box-shadow: inset 0 0 0 1px var(--glass-line);
         }
 
-        /* 编辑页：项目状态 / 任务状态列（浅色底，「其他」用深字保证可读） */
         body.edit-mode tbody td.cell-status-ok input {
-            color: #2e7d32;
-            font-weight: 600;
+            color: #00e676;
+            font-weight: 800;
         }
 
         body.edit-mode tbody td.cell-status-late input {
-            color: #c62828;
-            font-weight: 600;
+            color: #ff1744;
+            font-weight: 800;
         }
 
         body.edit-mode tbody td.cell-status-neutral input {
-            color: #333;
-            font-weight: 500;
+            color: #ffffff;
+            font-weight: 600;
         }
 
         body.edit-mode tbody tr:hover td {
-            background: #f8fafc;
+            background: rgba(255, 255, 255, 0.16);
         }
 
         body.edit-mode .row-actions {
             text-align: center;
+            width: 52px;
         }
 
         body.edit-mode .row-actions button {
             background: none;
             border: none;
-            color: #e74c3c;
+            color: #ffcdd2;
             cursor: pointer;
-            font-size: 18px;
-            padding: 4px 8px;
-            border-radius: 4px;
+            font-size: 20px;
+            line-height: 1;
+            padding: 6px 10px;
+            border-radius: 6px;
         }
 
         body.edit-mode .row-actions button:hover {
-            background: #fde8e8;
+            background: rgba(80, 10, 0, 0.35);
         }
 
         body.edit-mode .connection-status {
             display: flex;
             align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            color: #999;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-on-orange-muted);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
         }
 
         body.edit-mode .connection-status .dot {
-            width: 8px;
-            height: 8px;
+            width: 9px;
+            height: 9px;
             border-radius: 50%;
-            background: #e74c3c;
+            background: #ffab91;
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
         }
 
         body.edit-mode .connection-status .dot.connected {
-            background: #27ae60;
+            background: #b9f6ca;
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
         }
 
         body.edit-mode .info-bar {
-            margin-top: 16px;
-            padding: 12px 16px;
-            background: #e8f0fe;
-            border-radius: 8px;
+            margin-top: 20px;
+            padding: 16px 18px;
+            background: var(--glass-fill);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border-radius: var(--radius-lg);
             font-size: 13px;
-            color: #555;
+            line-height: 1.65;
+            color: var(--text-on-orange);
+            border: 1px solid var(--glass-line);
+            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
         }
 
         body.edit-mode .info-bar code {
-            background: #fff;
-            padding: 2px 6px;
-            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.35);
+            padding: 3px 8px;
+            border-radius: 6px;
             font-size: 12px;
+            border: 1px solid var(--glass-line);
+            color: #fff8f0;
         }
     </style>
 </head>
@@ -521,7 +642,7 @@
                         <table id="editTable"></table>
                         <div class="info-bar">
                             💡 信息发布屏请打开 <code>http://（运行 start.bat 的电脑 IPv4）:3000/?mode=display</code>；本机编辑时可直接用 <code>http://${location.hostname}:3000/?mode=display</code>
-                            ${!isProbablyLocalEditor && !editToken ? '<p style="margin-top:10px;color:#c0392b;">当前通过局域网 IP 打开编辑页且未带 <code>token</code> 参数时，修改可能无法保存。请在服务端设置 <code>DASHBOARD_EDIT_TOKEN</code> 后使用 <code>?mode=edit&amp;token=你的令牌</code>。</p>' : ''}
+                            ${!isProbablyLocalEditor && !editToken ? '<p style="margin-top:10px;color:#ffccbc;font-weight:600;">当前通过局域网 IP 打开编辑页且未带 <code>token</code> 参数时，修改可能无法保存。请在服务端设置 <code>DASHBOARD_EDIT_TOKEN</code> 后使用 <code>?mode=edit&amp;token=你的令牌</code>。</p>' : ''}
                         </div>
                     </div>
                 `;
@@ -571,11 +692,14 @@
 
             let html = `
                 <div class="fullscreen-btn" onclick="toggleFullscreen()" title="${isFs ? '退出全屏' : '全屏'}">${fsIcon}</div>
+                <div class="display-safe">
+                <div class="display-safe-inner">
                 <div class="header">
                     <h1>${escapeHtml(tableData.title)}</h1>
                     <div class="time">${timeStr}</div>
                 </div>
                 <div class="table-container">
+                <div class="table-x-scroll">
                     <table>
                         <thead><tr>`;
 
@@ -595,7 +719,7 @@
                 html += '</tr>';
             });
 
-            html += `</tbody></table></div>
+            html += `</tbody></table></div></div></div></div>
                 <div class="status-indicator">● 实时同步中</div>`;
 
             document.body.innerHTML = html;
