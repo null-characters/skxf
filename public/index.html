@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>数据看板</title>
+    <!-- PWA 全屏模式支持 -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        /* ===== 显示模式（深色大屏） ===== */
+        body.display-mode {
+            background: #0a0a1a;
+            color: #e0e0e0;
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        body.display-mode .header {
+            background: linear-gradient(135deg, #1a1a3e 0%, #0d0d2b 100%);
+            padding: 10px 20px;
+            border-bottom: 1px solid #3a3a8a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        body.display-mode .header .time {
+            font-size: 14px;
+            color: #8899bb;
+            white-space: nowrap;
+            position: absolute;
+            right: 40px;
+        }
+
+        body.display-mode .header h1 {
+            font-size: 24px;
+            color: #7eb8ff;
+            text-shadow: 0 0 10px rgba(126, 184, 255, 0.3);
+            white-space: nowrap;
+            text-align: center;
+            width: 100%;
+        }
+
+        body.display-mode .header .time {
+            font-size: 14px;
+            color: #8899bb;
+            white-space: nowrap;
+        }
+
+        body.display-mode .table-container {
+            flex: 1;
+            padding: 8px;
+            overflow: auto;
+        }
+
+        body.display-mode table {
+            border-collapse: collapse;
+            table-layout: auto;
+            min-width: 100%;
+        }
+
+        body.display-mode thead th {
+            background: linear-gradient(180deg, #2a2a6a 0%, #1a1a4a 100%);
+            color: #aaccff;
+            font-size: 14px;
+            padding: 10px 8px;
+            border: 1px solid #3a3a7a;
+            text-align: center;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        body.display-mode tbody td {
+            font-size: 14px;
+            padding: 8px 8px;
+            border: 1px solid #2a2a5a;
+            text-align: center;
+            transition: background 0.3s;
+            white-space: nowrap;
+        }
+
+        body.display-mode tbody tr:nth-child(even) td {
+            background: #0f0f2a;
+        }
+
+        body.display-mode tbody tr:nth-child(odd) td {
+            background: #12122e;
+        }
+
+        body.display-mode tbody tr:hover td {
+            background: #1a1a4a;
+        }
+
+        body.display-mode tbody td:first-child {
+            color: #7eb8ff;
+            font-weight: 500;
+        }
+
+        body.display-mode .status-indicator {
+            position: fixed;
+            bottom: 5px;
+            right: 10px;
+            font-size: 10px;
+            color: #3a5a3a;
+        }
+
+        body.display-mode .status-indicator.connected {
+            color: #4a8a4a;
+        }
+
+        /* ===== 全屏切换按钮 ===== */
+        body.display-mode .fullscreen-btn {
+            position: fixed;
+            top: 5px;
+            right: 5px;
+            width: 24px;
+            height: 24px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 4px;
+            cursor: pointer;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            backdrop-filter: blur(4px);
+        }
+
+        body.display-mode .fullscreen-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        body.display-mode .fullscreen-btn svg {
+            width: 14px;
+            height: 14px;
+            fill: #8899bb;
+        }
+
+        /* ===== 编辑模式 ===== */
+        body.edit-mode {
+            background: #f5f7fa;
+            color: #333;
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            min-height: 100vh;
+        }
+
+        body.edit-mode .toolbar {
+            background: #fff;
+            border-bottom: 1px solid #ddd;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        body.edit-mode .toolbar h1 {
+            font-size: 20px;
+            color: #333;
+            margin-right: auto;
+        }
+
+        body.edit-mode .toolbar input.title-input {
+            font-size: 20px;
+            color: #333;
+            border: none;
+            border-bottom: 2px solid transparent;
+            background: transparent;
+            outline: none;
+            margin-right: auto;
+            padding: 4px 8px;
+        }
+
+        body.edit-mode .toolbar input.title-input:hover {
+            border-bottom-color: #ddd;
+        }
+
+        body.edit-mode .toolbar input.title-input:focus {
+            border-bottom-color: #4a90d9;
+        }
+
+        body.edit-mode .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        body.edit-mode .btn-primary {
+            background: #4a90d9;
+            color: #fff;
+        }
+
+        body.edit-mode .btn-primary:hover {
+            background: #357abd;
+        }
+
+        body.edit-mode .btn-danger {
+            background: #e74c3c;
+            color: #fff;
+        }
+
+        body.edit-mode .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        body.edit-mode .btn-success {
+            background: #27ae60;
+            color: #fff;
+        }
+
+        body.edit-mode .btn-success:hover {
+            background: #219a52;
+        }
+
+        body.edit-mode .content {
+            padding: 24px;
+        }
+
+        body.edit-mode table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #fff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        }
+
+        body.edit-mode thead th {
+            background: #f0f4f8;
+            color: #555;
+            font-size: 14px;
+            padding: 12px 16px;
+            border-bottom: 2px solid #ddd;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        body.edit-mode tbody td {
+            padding: 4px 8px;
+            border-bottom: 1px solid #eee;
+            position: relative;
+        }
+
+        body.edit-mode tbody td input {
+            width: 100%;
+            border: none;
+            padding: 8px;
+            font-size: 14px;
+            background: transparent;
+            outline: none;
+        }
+
+        body.edit-mode tbody td input:focus {
+            background: #e8f0fe;
+            border-radius: 4px;
+        }
+
+        body.edit-mode tbody tr:hover td {
+            background: #f8fafc;
+        }
+
+        body.edit-mode .row-actions {
+            text-align: center;
+        }
+
+        body.edit-mode .row-actions button {
+            background: none;
+            border: none;
+            color: #e74c3c;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        body.edit-mode .row-actions button:hover {
+            background: #fde8e8;
+        }
+
+        body.edit-mode .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #999;
+        }
+
+        body.edit-mode .connection-status .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #e74c3c;
+        }
+
+        body.edit-mode .connection-status .dot.connected {
+            background: #27ae60;
+        }
+
+        body.edit-mode .info-bar {
+            margin-top: 16px;
+            padding: 12px 16px;
+            background: #e8f0fe;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #555;
+        }
+
+        body.edit-mode .info-bar code {
+            background: #fff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const mode = params.get('mode') || 'display';
+        const isEditMode = mode === 'edit';
+
+        document.body.className = isEditMode ? 'edit-mode' : 'display-mode';
+
+        let ws = null;
+        let tableData = null;
+
+        function connectWS() {
+            const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${wsProtocol}//${location.host}`);
+
+            ws.onopen = () => {
+                console.log('WebSocket 已连接');
+                updateConnectionStatus(true);
+            };
+
+            ws.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                if (msg.type === 'init' || msg.type === 'update') {
+                    tableData = msg.data;
+                    renderTable();
+                }
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket 断开，3秒后重连...');
+                updateConnectionStatus(false);
+                setTimeout(connectWS, 3000);
+            };
+
+            ws.onerror = () => {
+                updateConnectionStatus(false);
+            };
+        }
+
+        function sendUpdate(msg) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(msg));
+            }
+        }
+
+        function updateConnectionStatus(connected) {
+            const dot = document.querySelector('.dot');
+            const statusText = document.querySelector('.status-text');
+            const indicator = document.querySelector('.status-indicator');
+            if (dot) dot.className = 'dot' + (connected ? ' connected' : '');
+            if (statusText) statusText.textContent = connected ? '已连接' : '断开连接中...';
+            if (indicator) indicator.className = 'status-indicator' + (connected ? ' connected' : '');
+        }
+
+        function renderTable() {
+            if (!tableData) return;
+
+            if (isEditMode) {
+                renderEditMode();
+            } else {
+                renderDisplayMode();
+            }
+        }
+
+        function renderEditMode() {
+            if (!document.querySelector('.toolbar')) {
+                document.body.innerHTML = `
+                    <div class="toolbar">
+                        <input class="title-input" type="text" id="titleInput" placeholder="输入看板标题" />
+                        <div class="connection-status">
+                            <div class="dot"></div>
+                            <span class="status-text">连接中...</span>
+                        </div>
+                        <button class="btn btn-success" onclick="addRow()">+ 添加行</button>
+                    </div>
+                    <div class="content">
+                        <table id="editTable"></table>
+                        <div class="info-bar">
+                            💡 在设备浏览器中打开 <code>http://${location.hostname}:3000</code> 即可实时显示此表格
+                        </div>
+                    </div>
+                `;
+                document.getElementById('titleInput').addEventListener('input', (e) => {
+                    sendUpdate({ type: 'updateTitle', title: e.target.value });
+                });
+            }
+
+            document.getElementById('titleInput').value = tableData.title;
+
+            const table = document.getElementById('editTable');
+            let html = '<thead><tr>';
+            tableData.columns.forEach(col => {
+                html += `<th>${col}</th>`;
+            });
+            html += '<th style="width:50px">操作</th></tr></thead><tbody>';
+
+            tableData.rows.forEach(row => {
+                html += '<tr>';
+                row.data.forEach((cell, colIdx) => {
+                    html += `<td><input type="text" value="${escapeHtml(cell)}" 
+                        onchange="cellChanged(${row.id}, ${colIdx}, this.value)"
+                        onfocus="this.select()" /></td>`;
+                });
+                html += `<td class="row-actions"><button onclick="deleteRow(${row.id})" title="删除行">×</button></td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody>';
+            table.innerHTML = html;
+        }
+
+        function renderDisplayMode() {
+            const now = new Date();
+            const timeStr = now.toLocaleString('zh-CN', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+            });
+
+            const isFs = document.fullscreenElement || document.webkitFullscreenElement;
+            const fsIcon = isFs
+                ? '<svg viewBox="0 0 24 24"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>'
+                : '<svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>';
+
+            let html = `
+                <div class="fullscreen-btn" onclick="toggleFullscreen()" title="${isFs ? '退出全屏' : '全屏'}">${fsIcon}</div>
+                <div class="header">
+                    <h1>${escapeHtml(tableData.title)}</h1>
+                    <div class="time">${timeStr}</div>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead><tr>`;
+
+            tableData.columns.forEach(col => {
+                html += `<th>${escapeHtml(col)}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+
+            tableData.rows.forEach((row, idx) => {
+                html += '<tr>';
+                row.data.forEach((cell, colIdx) => {
+                    html += `<td>${escapeHtml(cell)}</td>`;
+                });
+                html += '</tr>';
+            });
+
+            html += `</tbody></table></div>
+                <div class="status-indicator">● 实时同步中</div>`;
+
+            document.body.innerHTML = html;
+        }
+
+        function toggleFullscreen() {
+            if (document.fullscreenElement || document.webkitFullscreenElement) {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                }
+            } else {
+                const elem = document.documentElement;
+                if (elem.requestFullscreen) {
+                    elem.requestFullscreen();
+                } else if (elem.webkitRequestFullscreen) {
+                    elem.webkitRequestFullscreen();
+                }
+            }
+        }
+
+        function cellChanged(rowId, colIndex, value) {
+            sendUpdate({ type: 'update', rowId, colIndex, value });
+        }
+
+        function addRow() {
+            sendUpdate({ type: 'addRow' });
+        }
+
+        function deleteRow(rowId) {
+            sendUpdate({ type: 'deleteRow', rowId });
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        // 显示模式定时刷新时间
+        if (!isEditMode) {
+            setInterval(() => {
+                if (tableData) renderDisplayMode();
+            }, 1000);
+        }
+
+        // 启动连接
+        connectWS();
+    </script>
+</body>
+</html>
