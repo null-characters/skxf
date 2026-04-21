@@ -8,18 +8,38 @@ const PORT = 3000;
 const HOST = '0.0.0.0';
 const EXCEL_FILE = path.join(__dirname, 'data/excel/研发项目看板2026.xlsx');
 
-// 获取本机 IP
+function loadDisplayHost() {
+    const configPath = path.join(__dirname, 'config.json');
+    try {
+        if (!fs.existsSync(configPath)) return '';
+        const j = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        const h = typeof j.displayHost === 'string' ? j.displayHost.trim() : '';
+        if (!h) return '';
+        if (h.length > 253 || !/^[\w.-]+$/.test(h)) {
+            console.warn('config.json 中 displayHost 格式无效，已忽略');
+            return '';
+        }
+        return h;
+    } catch (e) {
+        console.warn('读取 config.json 失败:', e.message);
+        return '';
+    }
+}
+
+const displayHost = loadDisplayHost();
+
+// 本机所有局域网 IPv4（多网卡时只打印第一个容易填错地址）
 const os = require('os');
 const interfaces = os.networkInterfaces();
-let localIP = 'localhost';
+const lanIPv4List = [];
 for (const name of Object.keys(interfaces)) {
     for (const iface of interfaces[name]) {
         if (iface.family === 'IPv4' && !iface.internal) {
-            localIP = iface.address;
-            break;
+            lanIPv4List.push(iface.address);
         }
     }
 }
+const localIP = lanIPv4List[0] || 'localhost';
 
 // 默认表格数据（Excel读取失败时回退）
 const defaultTableData = {
@@ -145,22 +165,76 @@ function watchExcelFile() {
     console.log('正在监听 Excel 文件变化:', EXCEL_FILE);
 }
 
+function normalizeUrlPath(rawUrl) {
+    if (!rawUrl) return '/';
+    let p = rawUrl.split('?')[0].split('#')[0];
+    try {
+        p = decodeURIComponent(p);
+    } catch (e) { /* ignore */ }
+    p = p.replace(/\/+/g, '/');
+    if (p.length > 1 && p.endsWith('/')) {
+        p = p.slice(0, -1);
+    }
+    return p || '/';
+}
+
 // HTTP 服务器（WebSocket 复用同一端口，避免局域网设备仅放行 3000 时无法连上 3001）
 const server = http.createServer((req, res) => {
-    // 解析 URL，去掉查询参数
-    const urlPath = req.url.split('?')[0];
+    const urlPath = normalizeUrlPath(req.url);
+    const method = req.method || 'GET';
+
     if (urlPath === '/' || urlPath === '/index.html') {
-        serveFile(res, 'public/index.html', 'text/html');
+        serveIndexHtml(res);
+    } else if (urlPath === '/api/table-state') {
+        if (method === 'OPTIONS') {
+            res.writeHead(204, {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type',
+            });
+            res.end();
+            return;
+        }
+        if (method !== 'GET' && method !== 'HEAD') {
+            res.writeHead(405, { 'Content-Type': 'text/plain; charset=UTF-8' });
+            res.end('Method Not Allowed');
+            return;
+        }
+        const headers = {
+            'Content-Type': 'application/json; charset=UTF-8',
+            'Cache-Control': 'no-store',
+            'Access-Control-Allow-Origin': '*',
+        };
+        res.writeHead(200, headers);
+        if (method === 'HEAD') {
+            res.end();
+            return;
+        }
+        res.end(JSON.stringify(tableData));
     } else if (urlPath === '/manifest.json') {
         serveFile(res, 'public/manifest.json', 'application/json');
     } else if (urlPath.startsWith('/public/')) {
         const filePath = path.join(__dirname, urlPath);
         serveFile(res, filePath, getContentType(filePath));
     } else {
-        res.writeHead(404);
+        res.writeHead(404, { 'Content-Type': 'text/plain; charset=UTF-8' });
         res.end('Not Found');
     }
 });
+
+function serveIndexHtml(res) {
+    const fullPath = path.join(__dirname, 'public/index.html');
+    fs.readFile(fullPath, 'utf8', (err, data) => {
+        if (err) {
+            res.writeHead(500);
+            res.end('Error loading file');
+            return;
+        }
+        const html = data.replace('___SKXF_DISPLAY_HOST_JSON___', JSON.stringify(displayHost));
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
+        res.end(html);
+    });
+}
 
 function serveFile(res, filePath, contentType) {
     const fullPath = path.isAbsolute(filePath) ? filePath : path.join(__dirname, filePath);
@@ -178,16 +252,30 @@ function serveFile(res, filePath, contentType) {
 const wss = new WebSocket.Server({ server });
 
 broadcastData = function() {
+    let sent = 0;
     wss.clients.forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
             client.send(JSON.stringify({ type: 'update', data: tableData }));
+            sent++;
         }
     });
-    console.log('数据已广播给所有客户端');
+    console.log(`数据已广播: ${sent} 个 WebSocket 客户端在线（共 ${wss.clients.size} 个连接）`);
 };
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
+    const ip = req.socket.remoteAddress || '';
+    console.log(`[WS] 新连接 from ${ip}（当前连接数 ${wss.clients.size}）`);
+
     ws.send(JSON.stringify({ type: 'init', data: tableData }));
+
+    ws.on('error', (err) => {
+        console.error('[WS] 连接错误:', err.message);
+    });
+
+    ws.on('close', (code, reason) => {
+        const why = reason && reason.length ? reason.toString() : '';
+        console.log(`[WS] 断开 code=${code} ${why}（剩余 ${wss.clients.size}）`);
+    });
 
     ws.on('message', (message) => {
         try {
@@ -248,6 +336,22 @@ server.listen(PORT, HOST, () => {
     console.log(`  Web 表格服务已启动`);
     console.log(`========================================`);
     console.log(`  编辑页面（本地）: http://localhost:${PORT}?mode=edit`);
-    console.log(`  显示页面（设备）: http://${localIP}:${PORT}`);
+    console.log(`  表格 JSON（大屏拉数）: http://localhost:${PORT}/api/table-state`);
+    if (displayHost) {
+        console.log(`  固定显示地址（config.json displayHost）:`);
+        console.log(`    http://${displayHost}:${PORT}/?mode=display`);
+        if (lanIPv4List.length && !lanIPv4List.includes(displayHost)) {
+            console.warn(`  [警告] 当前网卡 IPv4 为 [${lanIPv4List.join(', ')}]，与 displayHost 不一致。`);
+            console.warn(`          请在 Windows 中为「运行本服务的网卡」设置与 displayHost 相同的静态 IP，或修改 config.json。`);
+        }
+    } else if (lanIPv4List.length === 0) {
+        console.log(`  显示页面（设备）: http://<本机局域网IP>:${PORT}/?mode=display`);
+        console.log(`  （建议：为服务器设置静态 IP 后，复制 config.example.json 为 config.json 并填写 displayHost）`);
+    } else {
+        console.log(`  显示页面（设备，DHCP 下地址可能变化；建议静态 IP + config.json）:`);
+        lanIPv4List.forEach((ip) => {
+            console.log(`    http://${ip}:${PORT}/?mode=display`);
+        });
+    }
     console.log(`========================================\n`);
 });

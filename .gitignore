@@ -3,3 +3,5 @@ node_modules/
 *.xlsx
 .DS_Store
 __MACOSX/
+config.json
+.cursor-android-screen.png

@@ -331,14 +331,32 @@
 </head>
 <body>
     <script>
+        window.__SKXF_DISPLAY_HOST__ = ___SKXF_DISPLAY_HOST_JSON___;
         const params = new URLSearchParams(window.location.search);
         const mode = params.get('mode') || 'display';
         const isEditMode = mode === 'edit';
+        const hintDisplayHost = (window.__SKXF_DISPLAY_HOST__ && String(window.__SKXF_DISPLAY_HOST__).length)
+            ? window.__SKXF_DISPLAY_HOST__
+            : location.hostname;
 
         document.body.className = isEditMode ? 'edit-mode' : 'display-mode';
 
         let ws = null;
         let tableData = null;
+
+        async function fetchTableState() {
+            try {
+                const r = await fetch('/api/table-state', { cache: 'no-store' });
+                if (!r.ok) return;
+                const data = await r.json();
+                if (data && Array.isArray(data.columns) && Array.isArray(data.rows)) {
+                    tableData = data;
+                    renderTable();
+                }
+            } catch (e) {
+                console.warn('拉取表格数据失败', e);
+            }
+        }
 
         function connectWS() {
             const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -407,7 +425,7 @@
                     <div class="content">
                         <table id="editTable"></table>
                         <div class="info-bar">
-                            💡 在设备浏览器中打开 <code>http://${location.hostname}:3000</code> 即可实时显示此表格
+                            💡 在设备浏览器中打开 <code>http://${hintDisplayHost}:3000/?mode=display</code> 即可实时显示此表格
                         </div>
                     </div>
                 `;
@@ -522,8 +540,12 @@
             }, 1000);
         }
 
-        // 启动连接
+        // 先 HTTP 拉一份（大屏 WebSocket 常因代理/省电连不上，避免表体空白）
+        fetchTableState();
         connectWS();
+        if (!isEditMode) {
+            setInterval(fetchTableState, 8000);
+        }
     </script>
 </body>
 </html>
