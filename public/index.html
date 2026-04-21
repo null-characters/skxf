@@ -6,7 +6,7 @@
     <title>数据看板</title>
     <!-- PWA 全屏模式支持 -->
     <link rel="manifest" href="/manifest.json">
-    <meta name="theme-color" content="#FF6600">
+    <meta name="theme-color" content="#FF5000">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -14,18 +14,19 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         :root {
-            --brand: #FF6600;
+            --brand: #FF5000;
             /* 整页底色改为品牌色 */
-            --brand-vivid: #FF6600;
+            --brand-vivid: #FF5000;
             --brand-dark: #c45a00;
             --brand-deep: #b34700;
             /* 整页铺满：单色品牌橙 */
-            --page-orange-full: #FF6600;
+            --page-orange-full: #FF5000;
             --glass-line: rgba(255, 255, 255, 0.28);
             --glass-fill: rgba(0, 0, 0, 0.18);
             --glass-fill-strong: rgba(0, 0, 0, 0.32);
             --text-on-orange: rgba(255, 255, 255, 0.96);
             --text-on-orange-muted: rgba(255, 248, 240, 0.82);
+            --grid-line: #6666FF;
             --radius-lg: 14px;
         }
 
@@ -87,7 +88,7 @@
         }
 
         body.display-mode .header .time {
-            font-size: 14px;
+            font-size: 15px;
             font-weight: 500;
             color: var(--text-on-orange-muted);
             white-space: nowrap;
@@ -99,7 +100,7 @@
         }
 
         body.display-mode .header h1 {
-            font-size: 26px;
+            font-size: 28px;
             font-weight: 700;
             color: #fff;
             letter-spacing: 0.04em;
@@ -137,41 +138,37 @@
             min-width: 100%;
             border-collapse: collapse;
             table-layout: auto;
-            background: var(--glass-fill);
+            background: transparent;
         }
 
         body.display-mode thead th {
-            background: var(--glass-fill-strong);
+            background: transparent;
             color: #fff8f0;
-            font-size: 15px;
+            font-size: 16px;
             padding: 12px 10px;
-            border-bottom: 2px solid var(--glass-line);
+            border: 1px dashed var(--grid-line);
             text-align: center;
             font-weight: 700;
             white-space: nowrap;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+            text-shadow: none;
         }
 
         body.display-mode tbody td {
-            font-size: 15px;
+            font-size: 16px;
             padding: 10px 10px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            border: 1px dashed var(--grid-line);
             text-align: center;
             transition: background 0.2s;
             white-space: nowrap;
             color: var(--text-on-orange);
+            background: transparent;
         }
 
-        body.display-mode tbody tr:nth-child(even) td {
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        body.display-mode tbody tr:nth-child(odd) td {
-            background: rgba(255, 255, 255, 0.05);
-        }
-
+        /* 表头/数据区不做任何填充色：直接显示页面底色 */
+        body.display-mode tbody tr:nth-child(even) td,
+        body.display-mode tbody tr:nth-child(odd) td,
         body.display-mode tbody tr:hover td {
-            background: rgba(255, 255, 255, 0.18);
+            background: transparent;
         }
 
         body.display-mode tbody td:first-child {
@@ -277,14 +274,14 @@
         }
 
         body.edit-mode .toolbar h1 {
-            font-size: 20px;
+            font-size: 21px;
             color: #fff;
             margin-right: auto;
             text-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
         }
 
         body.edit-mode .toolbar input.title-input {
-            font-size: 20px;
+            font-size: 21px;
             font-weight: 600;
             color: #fff;
             border: none;
@@ -313,7 +310,7 @@
             border: none;
             border-radius: 8px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 15px;
             font-weight: 600;
             transition: transform 0.15s, box-shadow 0.2s;
         }
@@ -364,39 +361,37 @@
             width: 100%;
             border-collapse: collapse;
             table-layout: auto;
-            background: var(--glass-fill);
+            background: transparent;
         }
 
         body.edit-mode thead th {
-            background: var(--glass-fill-strong);
+            background: transparent;
             color: #fff8f0;
-            font-size: 14px;
+            font-size: 15px;
             padding: 14px 16px;
-            border-bottom: 2px solid var(--glass-line);
+            border: 1px dashed var(--grid-line);
             text-align: left;
             font-weight: 700;
-            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+            text-shadow: none;
         }
 
         body.edit-mode tbody td {
             padding: 6px 10px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            border: 1px dashed var(--grid-line);
             position: relative;
+            background: transparent;
         }
 
-        body.edit-mode tbody tr:nth-child(even) td {
-            background: rgba(255, 255, 255, 0.1);
-        }
-
+        body.edit-mode tbody tr:nth-child(even) td,
         body.edit-mode tbody tr:nth-child(odd) td {
-            background: rgba(255, 255, 255, 0.05);
+            background: transparent;
         }
 
         body.edit-mode tbody td input {
             width: 100%;
             border: none;
             padding: 10px 8px;
-            font-size: 14px;
+            font-size: 15px;
             background: transparent;
             outline: none;
             color: var(--text-on-orange);
@@ -424,7 +419,7 @@
         }
 
         body.edit-mode tbody tr:hover td {
-            background: rgba(255, 255, 255, 0.16);
+            background: transparent;
         }
 
         body.edit-mode .row-actions {

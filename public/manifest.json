@@ -4,8 +4,8 @@
   "description": "信息显示屏幕数据看板",
   "start_url": "/?mode=display",
   "display": "fullscreen",
-  "background_color": "#FF6600",
-  "theme_color": "#FF6600",
+  "background_color": "#FF5000",
+  "theme_color": "#FF5000",
   "icons": [
     {
       "src": "/public/icon-192.png",
