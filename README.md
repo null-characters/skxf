@@ -103,6 +103,8 @@ skxf/
 ├── package.json        # npm 配置及依赖声明
 ├── start.bat           # Windows 一键启动脚本
 ├── start.sh            # macOS/Linux 一键启动脚本
+├── stop.bat            # Windows 停止服务脚本
+├── stop.sh             # macOS/Linux 停止服务脚本
 └── README.md           # 本文件
 ```
 
