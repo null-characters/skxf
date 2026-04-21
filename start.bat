@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-title Data Board
+title SKXF-DataBoard
 
 echo ========================================
 echo   Data Board - Start
@@ -32,6 +32,9 @@ echo.
 :run_server
 echo [info] Starting server...
 echo.
+rem Optional security (see docs\SECURITY_AUDIT.md):
+rem set DASHBOARD_EDIT_TOKEN=change-me
+rem set DASHBOARD_CORS_ORIGIN=http://192.168.1.100:3000
 node server.js
 pause
 exit /b 0

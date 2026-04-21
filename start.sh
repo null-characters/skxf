@@ -40,4 +40,7 @@ echo ""
 
 echo "[信息] 正在启动服务器..."
 echo ""
+# Optional: export DASHBOARD_EDIT_TOKEN=change-me
+# Optional: export DASHBOARD_CORS_ORIGIN=http://192.168.1.100:3000
+# See docs/SECURITY_AUDIT.md
 node server.js

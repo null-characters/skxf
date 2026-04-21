@@ -4,9 +4,16 @@ const path = require('path');
 const WebSocket = require('ws');
 const xlsx = require('xlsx');
 
-const PORT = 3000;
-const HOST = '0.0.0.0';
+const PORT = Number(process.env.PORT) || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 const EXCEL_FILE = path.join(__dirname, 'data/excel/研发项目看板2026.xlsx');
+const PUBLIC_ROOT = path.join(__dirname, 'public');
+const MAX_WS_PAYLOAD = 256 * 1024;
+const EDIT_TOKEN = process.env.DASHBOARD_EDIT_TOKEN || '';
+const INSECURE_LAN_EDITS = /^(1|true|yes)$/i.test(process.env.DASHBOARD_ALLOW_INSECURE_LAN_EDITS || '');
+const CORS_ORIGIN = process.env.DASHBOARD_CORS_ORIGIN || '';
+
+const MUTATION_TYPES = new Set(['update', 'addRow', 'deleteRow', 'updateTitle']);
 
 // 本机所有局域网 IPv4（启动时打印，供电视浏览器填写；项目内无 IP 配置文件）
 const os = require('os');
@@ -156,32 +163,78 @@ function normalizeUrlPath(rawUrl) {
     return p || '/';
 }
 
+function isLoopbackAddress(addr) {
+    if (!addr) return false;
+    const a = String(addr);
+    return a === '127.0.0.1' || a === '::1' || a === '::ffff:127.0.0.1';
+}
+
+/** 防止 /public/../../ 等路径穿越，仅允许落在 public 目录内 */
+function resolvePublicFile(relFromPublic) {
+    if (relFromPublic == null || relFromPublic === '') return null;
+    const rel = path.normalize(relFromPublic);
+    if (rel === '.' || rel === '..') return null;
+    const candidate = path.resolve(PUBLIC_ROOT, rel);
+    const pub = path.resolve(PUBLIC_ROOT);
+    if (candidate === pub) return null;
+    const relative = path.relative(pub, candidate);
+    if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return null;
+    return candidate;
+}
+
+function baseSecurityHeaders() {
+    return {
+        'X-Content-Type-Options': 'nosniff',
+        'Referrer-Policy': 'strict-origin-when-cross-origin',
+    };
+}
+
+function corsHeadersForRequest(req) {
+    if (!CORS_ORIGIN) return {};
+    const origin = req.headers.origin;
+    if (origin && origin === CORS_ORIGIN) {
+        return {
+            'Access-Control-Allow-Origin': origin,
+            'Vary': 'Origin',
+        };
+    }
+    return {};
+}
+
 // HTTP 服务器（WebSocket 复用同一端口，避免局域网设备仅放行 3000 时无法连上 3001）
 const server = http.createServer((req, res) => {
     const urlPath = normalizeUrlPath(req.url);
     const method = req.method || 'GET';
+    const sec = baseSecurityHeaders();
+    const cors = corsHeadersForRequest(req);
 
     if (urlPath === '/' || urlPath === '/index.html') {
-        serveIndexHtml(res);
+        serveIndexHtml(res, sec);
     } else if (urlPath === '/api/table-state') {
         if (method === 'OPTIONS') {
-            res.writeHead(204, {
-                'Access-Control-Allow-Origin': '*',
+            const opt = {
+                ...sec,
+                ...cors,
                 'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
                 'Access-Control-Allow-Headers': 'Content-Type',
-            });
+            };
+            if (CORS_ORIGIN) {
+                opt['Access-Control-Max-Age'] = '86400';
+            }
+            res.writeHead(204, opt);
             res.end();
             return;
         }
         if (method !== 'GET' && method !== 'HEAD') {
-            res.writeHead(405, { 'Content-Type': 'text/plain; charset=UTF-8' });
+            res.writeHead(405, { ...sec, 'Content-Type': 'text/plain; charset=UTF-8' });
             res.end('Method Not Allowed');
             return;
         }
         const headers = {
+            ...sec,
+            ...cors,
             'Content-Type': 'application/json; charset=UTF-8',
             'Cache-Control': 'no-store',
-            'Access-Control-Allow-Origin': '*',
         };
         res.writeHead(200, headers);
         if (method === 'HEAD') {
@@ -190,43 +243,53 @@ const server = http.createServer((req, res) => {
         }
         res.end(JSON.stringify(tableData));
     } else if (urlPath === '/manifest.json') {
-        serveFile(res, 'public/manifest.json', 'application/json');
+        serveFile(res, path.join(PUBLIC_ROOT, 'manifest.json'), 'application/json', sec);
     } else if (urlPath.startsWith('/public/')) {
-        const filePath = path.join(__dirname, urlPath);
-        serveFile(res, filePath, getContentType(filePath));
+        const rel = urlPath.slice('/public/'.length);
+        const safePath = resolvePublicFile(rel);
+        if (!safePath) {
+            res.writeHead(404, { ...sec, 'Content-Type': 'text/plain; charset=UTF-8' });
+            res.end('Not Found');
+            return;
+        }
+        serveFile(res, safePath, getContentType(safePath), sec);
     } else {
-        res.writeHead(404, { 'Content-Type': 'text/plain; charset=UTF-8' });
+        res.writeHead(404, { ...sec, 'Content-Type': 'text/plain; charset=UTF-8' });
         res.end('Not Found');
     }
 });
 
-function serveIndexHtml(res) {
-    const fullPath = path.join(__dirname, 'public/index.html');
+function serveIndexHtml(res, extraHeaders = {}) {
+    const fullPath = path.join(PUBLIC_ROOT, 'index.html');
     fs.readFile(fullPath, 'utf8', (err, data) => {
         if (err) {
-            res.writeHead(500);
+            res.writeHead(500, { ...extraHeaders });
             res.end('Error loading file');
             return;
         }
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=UTF-8' });
+        res.writeHead(200, {
+            ...extraHeaders,
+            'Content-Type': 'text/html; charset=UTF-8',
+            'X-Frame-Options': 'SAMEORIGIN',
+        });
         res.end(data);
     });
 }
 
-function serveFile(res, filePath, contentType) {
+function serveFile(res, filePath, contentType, extraHeaders = {}) {
     const fullPath = path.isAbsolute(filePath) ? filePath : path.join(__dirname, filePath);
     fs.readFile(fullPath, (err, data) => {
         if (err) {
-            res.writeHead(500);
-            res.end('Error loading file');
+            res.writeHead(404, { ...extraHeaders, 'Content-Type': 'text/plain; charset=UTF-8' });
+            res.end('Not Found');
             return;
         }
-        res.writeHead(200, { 'Content-Type': contentType });
+        res.writeHead(200, { ...extraHeaders, 'Content-Type': contentType });
         res.end(data);
     });
 }
 
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({ server, maxPayload: MAX_WS_PAYLOAD });
 
 broadcastData = function() {
     let sent = 0;
@@ -239,9 +302,42 @@ broadcastData = function() {
     console.log(`数据已广播: ${sent} 个 WebSocket 客户端在线（共 ${wss.clients.size} 个连接）`);
 };
 
+function applyMutation(msg) {
+    if (msg.type === 'update') {
+        const { rowId, colIndex, value } = msg;
+        const row = tableData.rows.find(r => r.id === rowId);
+        if (row && typeof colIndex === 'number' && colIndex >= 0 && colIndex < row.data.length) {
+            row.data[colIndex] = value == null ? '' : String(value);
+        }
+    } else if (msg.type === 'addRow') {
+        const colCount = Math.max(1, tableData.columns.length);
+        const empty = Array(colCount).fill('');
+        empty[0] = String(tableData.rows.length + 1);
+        const newRow = { id: nextId++, data: empty };
+        tableData.rows.push(newRow);
+    } else if (msg.type === 'deleteRow') {
+        const { rowId } = msg;
+        tableData.rows = tableData.rows.filter(r => r.id !== rowId);
+        tableData.rows.forEach((row, idx) => {
+            if (row.data.length) row.data[0] = String(idx + 1);
+        });
+    } else if (msg.type === 'updateTitle') {
+        tableData.title = msg.title == null ? '' : String(msg.title);
+    }
+}
+
 wss.on('connection', (ws, req) => {
     const ip = req.socket.remoteAddress || '';
-    console.log(`[WS] 新连接 from ${ip}（当前连接数 ${wss.clients.size}）`);
+    let canMutate = INSECURE_LAN_EDITS;
+    if (!canMutate) {
+        canMutate = isLoopbackAddress(ip);
+    }
+    if (INSECURE_LAN_EDITS) {
+        console.warn('[WS][安全] DASHBOARD_ALLOW_INSECURE_LAN_EDITS 已开启：任意客户端可通过 WebSocket 修改内存中的表格数据');
+    }
+
+    ws._canMutate = canMutate;
+    console.log(`[WS] 新连接 from ${ip}（可写: ${ws._canMutate}，当前连接数 ${wss.clients.size}）`);
 
     ws.send(JSON.stringify({ type: 'init', data: tableData }));
 
@@ -256,37 +352,52 @@ wss.on('connection', (ws, req) => {
 
     ws.on('message', (message) => {
         try {
-            const msg = JSON.parse(message);
+            const msg = JSON.parse(message.toString());
 
-            if (msg.type === 'update') {
-                const { rowId, colIndex, value } = msg;
-                const row = tableData.rows.find(r => r.id === rowId);
-                if (row) {
-                    row.data[colIndex] = value;
+            if (msg.type === 'auth') {
+                if (INSECURE_LAN_EDITS) {
+                    ws.send(JSON.stringify({ type: 'authOk', note: 'insecure_lan' }));
+                    return;
                 }
-            } else if (msg.type === 'addRow') {
-                const newRow = {
-                    id: nextId++,
-                    data: [String(tableData.rows.length + 1), '', '', '', '']
-                };
-                tableData.rows.push(newRow);
-            } else if (msg.type === 'deleteRow') {
-                const { rowId } = msg;
-                tableData.rows = tableData.rows.filter(r => r.id !== rowId);
-                tableData.rows.forEach((row, idx) => {
-                    row.data[0] = String(idx + 1);
-                });
-            } else if (msg.type === 'updateTitle') {
-                tableData.title = msg.title;
+                if (!EDIT_TOKEN) {
+                    ws.send(JSON.stringify({
+                        type: 'authFail',
+                        code: 'NO_SERVER_TOKEN',
+                        message: '服务端未设置 DASHBOARD_EDIT_TOKEN，仅本机回环地址可编辑',
+                    }));
+                    return;
+                }
+                if (msg.token === EDIT_TOKEN) {
+                    ws._canMutate = true;
+                    ws.send(JSON.stringify({ type: 'authOk' }));
+                    console.log(`[WS] 远端已认证编辑权限 from ${ip}`);
+                } else {
+                    ws.send(JSON.stringify({ type: 'authFail', code: 'BAD_TOKEN', message: '令牌错误' }));
+                    console.warn(`[WS] 拒绝错误编辑令牌 from ${ip}`);
+                }
+                return;
             }
 
-            wss.clients.forEach(client => {
-                if (client.readyState === WebSocket.OPEN) {
-                    client.send(JSON.stringify({ type: 'update', data: tableData }));
-                }
-            });
+            if (MUTATION_TYPES.has(msg.type) && !ws._canMutate) {
+                ws.send(JSON.stringify({
+                    type: 'error',
+                    code: 'FORBIDDEN',
+                    message: '无写权限：请在本机编辑，或设置 DASHBOARD_EDIT_TOKEN 并通过 ?mode=edit&token= 连接后先发 auth 消息',
+                }));
+                console.warn(`[WS] 拒绝未授权写操作 (${msg.type}) from ${ip}`);
+                return;
+            }
+
+            if (MUTATION_TYPES.has(msg.type)) {
+                applyMutation(msg);
+                wss.clients.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({ type: 'update', data: tableData }));
+                    }
+                });
+            }
         } catch (e) {
-            console.error('消息处理错误:', e);
+            console.error('消息处理错误:', e.message);
         }
     });
 });
@@ -321,6 +432,16 @@ server.listen(PORT, HOST, () => {
         lanIPv4List.forEach((ip) => {
             console.log(`    http://${ip}:${PORT}/?mode=display`);
         });
+    }
+    if (INSECURE_LAN_EDITS) {
+        console.log(`  安全: 已开启 DASHBOARD_ALLOW_INSECURE_LAN_EDITS（任意局域网客户端可改表，不推荐生产）`);
+    } else if (EDIT_TOKEN) {
+        console.log(`  安全: 已设置 DASHBOARD_EDIT_TOKEN — 非本机编辑请使用 ?mode=edit&token=<令牌>`);
+    } else {
+        console.log(`  安全: 未设置 DASHBOARD_EDIT_TOKEN — 仅本机回环 WebSocket 可写；电视/大屏为只读`);
+    }
+    if (CORS_ORIGIN) {
+        console.log(`  安全: 已启用 CORS，仅允许 Origin: ${CORS_ORIGIN}`);
     }
     console.log(`========================================\n`);
 });

@@ -334,6 +334,8 @@
         const params = new URLSearchParams(window.location.search);
         const mode = params.get('mode') || 'display';
         const isEditMode = mode === 'edit';
+        const editToken = params.get('token') || '';
+        const isProbablyLocalEditor = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(location.hostname);
 
         document.body.className = isEditMode ? 'edit-mode' : 'display-mode';
 
@@ -354,17 +356,56 @@
             }
         }
 
+        function showEditBanner(text) {
+            let el = document.getElementById('editSecurityBanner');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'editSecurityBanner';
+                el.style.cssText = 'margin:12px 24px;padding:12px;background:#fde8e8;color:#a82323;border-radius:8px;font-size:14px;line-height:1.5;';
+                document.body.insertBefore(el, document.body.firstChild);
+            }
+            el.textContent = text;
+        }
+
+        function clearEditBanner() {
+            const el = document.getElementById('editSecurityBanner');
+            if (el) el.remove();
+        }
+
         function connectWS() {
             const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
             ws = new WebSocket(`${wsProtocol}//${location.host}`);
 
             ws.onopen = () => {
                 console.log('WebSocket 已连接');
+                if (isEditMode && editToken) {
+                    ws.send(JSON.stringify({ type: 'auth', token: editToken }));
+                }
                 updateConnectionStatus(true);
             };
 
             ws.onmessage = (event) => {
-                const msg = JSON.parse(event.data);
+                let msg;
+                try {
+                    msg = JSON.parse(event.data);
+                } catch (e) {
+                    console.warn('无法解析 WebSocket 消息', e);
+                    return;
+                }
+                if (msg.type === 'authOk') {
+                    clearEditBanner();
+                    return;
+                }
+                if (msg.type === 'authFail') {
+                    showEditBanner('编辑认证失败：' + (msg.message || '请核对服务端 DASHBOARD_EDIT_TOKEN 与地址栏 token 参数'));
+                    return;
+                }
+                if (msg.type === 'error' && msg.code === 'FORBIDDEN') {
+                    if (isEditMode) {
+                        showEditBanner(msg.message || '服务器拒绝了此次修改（无写权限）');
+                    }
+                    return;
+                }
                 if (msg.type === 'init' || msg.type === 'update') {
                     tableData = msg.data;
                     renderTable();
@@ -422,6 +463,7 @@
                         <table id="editTable"></table>
                         <div class="info-bar">
                             💡 信息发布屏请打开 <code>http://（运行 start.bat 的电脑 IPv4）:3000/?mode=display</code>；本机编辑时可直接用 <code>http://${location.hostname}:3000/?mode=display</code>
+                            ${!isProbablyLocalEditor && !editToken ? '<p style="margin-top:10px;color:#c0392b;">当前通过局域网 IP 打开编辑页且未带 <code>token</code> 参数时，修改可能无法保存。请在服务端设置 <code>DASHBOARD_EDIT_TOKEN</code> 后使用 <code>?mode=edit&amp;token=你的令牌</code>。</p>' : ''}
                         </div>
                     </div>
                 `;
@@ -435,7 +477,7 @@
             const table = document.getElementById('editTable');
             let html = '<thead><tr>';
             tableData.columns.forEach(col => {
-                html += `<th>${col}</th>`;
+                html += `<th>${escapeHtml(col)}</th>`;
             });
             html += '<th style="width:50px">操作</th></tr></thead><tbody>';
 
