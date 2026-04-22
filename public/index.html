@@ -71,6 +71,9 @@
             flex-direction: column;
             transform: scale(0.86);
             transform-origin: top center;
+            /* 抵消 scale(0.86) 产生的底部空白：缩放后实际高度为86%，剩余14%用负margin消除 */
+            margin-bottom: calc(-14% / 0.86 * 0.86);
+            height: calc(100% / 0.86);
         }
 
         body.display-mode .header {
@@ -114,7 +117,7 @@
             flex: 1 1 0%;
             min-width: 0;
             min-height: 0;
-            padding: 8px 0 4px 0;
+            padding: 6px 0 2px 0;
             overflow: hidden;
             display: flex;
             flex-direction: column;
@@ -206,7 +209,7 @@
         /* 放左下角，避免盖住表格最右侧列（原右下角常与末列重叠） */
         body.display-mode .status-indicator {
             position: fixed;
-            bottom: max(10px, env(safe-area-inset-bottom, 0px), 8px);
+            bottom: 2px;
             left: max(14px, env(safe-area-inset-left, 0px), 12px);
             right: auto;
             font-size: 11px;
@@ -501,6 +504,8 @@
 
         let ws = null;
         let tableData = null;
+        let scrollIndex = 0; // 滚动起始索引
+        const ROWS_PER_PAGE = 19; // 每页显示行数
 
         async function fetchTableState() {
             try {
@@ -704,7 +709,15 @@
             });
             html += '</tr></thead><tbody>';
 
-            tableData.rows.forEach((row, idx) => {
+            // 计算当前窗口显示的行
+            const totalRows = tableData.rows.length;
+            const visibleRows = [];
+            for (let i = 0; i < ROWS_PER_PAGE; i++) {
+                const idx = (scrollIndex + i) % totalRows;
+                visibleRows.push({ ...tableData.rows[idx], originalIdx: idx + 1 });
+            }
+
+            visibleRows.forEach((row, idx) => {
                 html += '<tr>';
                 row.data.forEach((cell, colIdx) => {
                     const colName = tableData.columns[colIdx] || '';
@@ -716,7 +729,7 @@
             });
 
             html += `</tbody></table></div></div></div></div>
-                <div class="status-indicator">● 实时同步中</div>`;
+                <div class="status-indicator">● 实时同步中 | ${scrollIndex + 1}-${Math.min(scrollIndex + ROWS_PER_PAGE, totalRows)}/${totalRows}</div>`;
 
             document.body.innerHTML = html;
         }
@@ -755,11 +768,27 @@
             return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
 
-        // 显示模式定时刷新时间
+        // 显示模式：1秒刷新时间显示，5秒滚动数据
         if (!isEditMode) {
             setInterval(() => {
-                if (tableData) renderDisplayMode();
+                if (tableData) {
+                    // 只更新时间，不重新渲染表格
+                    const timeEl = document.querySelector('.header .time');
+                    if (timeEl) {
+                        const now = new Date();
+                        timeEl.textContent = now.toLocaleString('zh-CN', {
+                            year: 'numeric', month: '2-digit', day: '2-digit',
+                            hour: '2-digit', minute: '2-digit', second: '2-digit'
+                        });
+                    }
+                }
             }, 1000);
+            setInterval(() => {
+                if (tableData && tableData.rows.length > ROWS_PER_PAGE) {
+                    scrollIndex = (scrollIndex + 1) % tableData.rows.length;
+                    renderDisplayMode();
+                }
+            }, 5000);
         }
 
         // 先 HTTP 拉一份（大屏 WebSocket 常因代理/省电连不上，避免表体空白）
