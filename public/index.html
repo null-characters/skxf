@@ -144,8 +144,8 @@
         body.display-mode thead th {
             background: transparent;
             color: #fff8f0;
-            font-size: 16px;
-            padding: 12px 10px;
+            font-size: 14px;
+            padding: 10px 6px;
             border: 1px dashed var(--grid-line);
             text-align: center;
             font-weight: 700;
@@ -154,8 +154,8 @@
         }
 
         body.display-mode tbody td {
-            font-size: 16px;
-            padding: 10px 10px;
+            font-size: 14px;
+            padding: 8px 6px;
             border: 1px dashed var(--grid-line);
             text-align: center;
             transition: background 0.2s;
@@ -698,8 +698,9 @@
                     <table>
                         <thead><tr>`;
 
-            tableData.columns.forEach(col => {
-                html += `<th>${escapeHtml(col)}</th>`;
+            tableData.columns.forEach((col, idx) => {
+                const w = (tableData.colWidths && tableData.colWidths[idx]) ? ` style="min-width:${tableData.colWidths[idx]}"` : '';
+                html += `<th${w}>${escapeHtml(col)}</th>`;
             });
             html += '</tr></thead><tbody>';
 

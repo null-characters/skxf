@@ -49,7 +49,29 @@ function excelDateToString(excelDate) {
     return excelDate || '';
 }
 
-// 读取 Excel 文件
+// 固定标题
+const FIXED_TITLE = 'BILLDA研发项目管理看板';
+
+// 列宽配置（紧凑布局，总宽约70em适配1920x1080大屏）
+const COLUMN_WIDTHS = {
+    '项目名称': '8em',
+    '申请人': '4em',
+    '等级': '2.5em',
+    '项目组别': '4em',
+    '负责人': '4em',
+    '项目阶段': '6em',
+    '计划开始': '5em',
+    '计划完成': '5em',
+    '当前状态': '4em',
+    '延期天数': '4em',
+    '当前项目任务': '7em',
+    '执行人': '4em',
+    '计划完成时间': '5em',
+    '风险状态': '4em',
+    '任务延期天数': '4.5em',
+};
+
+// 读取 Excel 文件（全景计划表，前15列）
 function readExcelFile() {
     try {
         if (!fs.existsSync(EXCEL_FILE)) {
@@ -58,7 +80,11 @@ function readExcelFile() {
         }
         
         const workbook = xlsx.readFile(EXCEL_FILE);
-        const sheetName = workbook.SheetNames[0];
+        // 读取第三张表"全景计划"
+        const sheetName = workbook.SheetNames[2];
+        if (sheetName !== '全景计划') {
+            console.log(`警告: 第三张表不是"全景计划"，而是"${sheetName}"`);
+        }
         const worksheet = workbook.Sheets[sheetName];
         
         // 读取为二维数组，保留空单元格
@@ -69,27 +95,35 @@ function readExcelFile() {
             return null;
         }
         
-        // 第一行作为标题
-        const title = rawData[0][0] || '数据看板';
+        // 固定标题
+        const title = FIXED_TITLE;
 
-        // 第二行作为列头，跳过空列（合并单元格产生的空列）
-        const headerRow = rawData[1];
-        const skipIndexes = [];
-        headerRow.forEach((col, idx) => {
-            if (col === '' && idx > 0) skipIndexes.push(idx);
-        });
-        const columns = headerRow.filter((col, idx) => !skipIndexes.includes(idx));
+        // 第一行作为列头，只取前15列
+        const maxCols = 15;
+        const headerRow = rawData[0];
+        const columns = headerRow.slice(0, maxCols);
 
-        // 剩余行作为数据，同样跳过空列
+        // 计算列宽数组
+        const colWidths = columns.map(col => COLUMN_WIDTHS[col] || '8em');
+
+        // "当前状态"列的索引
+        const statusColIdx = columns.indexOf('当前状态');
+
+        // 剩余行作为数据
         const rows = [];
         let idCounter = 1;
 
-        for (let i = 2; i < rawData.length; i++) {
-            const rawRow = rawData[i].filter((cell, idx) => !skipIndexes.includes(idx));
+        for (let i = 1; i < rawData.length; i++) {
+            const rawRow = rawData[i].slice(0, maxCols);
+
+            // 跳过"当前状态"为"已完成"的行
+            if (statusColIdx >= 0 && String(rawRow[statusColIdx] || '').trim() === '已完成') {
+                continue;
+            }
             const rowData = rawRow.map((cell, idx) => {
                 // 处理日期列（根据列名判断）
                 const colName = columns[idx] || '';
-                if (colName.includes('时间') || colName.includes('日期')) {
+                if (colName.includes('开始') || colName.includes('完成') || colName.includes('时间')) {
                     return excelDateToString(cell);
                 }
                 // 处理数字0显示为空或保留
@@ -97,7 +131,7 @@ function readExcelFile() {
                 return cell || '';
             });
 
-            // 只添加非空行
+            // 只添加非空行（至少有一个非空单元格）
             if (rowData.some(cell => cell !== '' && cell !== '0')) {
                 rows.push({ id: idCounter++, data: rowData });
             }
@@ -105,7 +139,7 @@ function readExcelFile() {
         
         console.log(`Excel 读取成功: ${title}, ${columns.length} 列, ${rows.length} 行`);
         
-        return { title, columns, rows };
+        return { title, columns, rows, colWidths };
     } catch (error) {
         console.error('读取 Excel 文件失败:', error.message);
         return null;
