@@ -6,7 +6,7 @@ const xlsx = require('xlsx');
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
-const EXCEL_FILE = path.join(__dirname, 'data/excel/研发项目看板2026.xlsx');
+const EXCEL_FILE = path.join(__dirname, '../WeDrive/深圳市比尔达科技有限公司/台账/2026台账/研发项目看板2026.xlsx');
 const PUBLIC_ROOT = path.join(__dirname, 'public');
 const MAX_WS_PAYLOAD = 256 * 1024;
 const EDIT_TOKEN = process.env.DASHBOARD_EDIT_TOKEN || '';
