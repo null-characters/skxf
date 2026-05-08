@@ -101,6 +101,7 @@ ADB="$HOME/Library/Android/sdk/platform-tools/adb"
 ## 使用说明（推荐流程）
 
 1. **电脑**：在仓库根目录照常运行 **`node server.js`**（见 [**`README.md`**](../README.md)），控制台出现 **「局域网发现: UDP 39300 …」**（除非在 [**`docs/SECURITY_AUDIT.md`**](../docs/SECURITY_AUDIT.md) 所述将 **`DASHBOARD_DISCOVERY_PORT=0`**）。
+   - 也可用脚本：macOS `./start.sh`；Windows `start.bat`（两者均支持 `PORT=3002` / `start.bat 3002` 方式更换端口）。
 2. **大屏**：安装本 APK。
 3. **防火墙**：服务端机器需放行 **UDP 39300 入站**（用于接收探测并回复）。
 4. 点开 App：**隐藏状态栏 / 导航条**，约 **2.6s** 内完成发现并成功则直接 **`loadUrl`**。
