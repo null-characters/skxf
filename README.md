@@ -1,278 +1,94 @@
-# 数据看板 - Web 表格投屏应用
+# 数据看板（Excel → Web → Android 大屏）
 
-一个轻量级的 Web 表格编辑与实时投屏应用，专为信息发布屏设计。
-
-## 功能特点
-
-- **双模式切换**：编辑模式 + 显示模式
-- **实时同步**：WebSocket 与 HTTP **共用 3000 端口**，编辑端修改后推送到显示端（避免电视端防火墙只放行单端口时 WS 连不上）
-- **HTTP 拉取兜底**：提供 `GET /api/table-state` 返回当前表格 JSON；显示端会首屏拉取并定时刷新，**即使 WebSocket 为 0 在线也能看到 Excel 数据**
-- **零配置**：单文件服务器，无需复杂框架
-- **适配大屏**：显示模式针对 1920x1080 横屏优化；**整页深橙铺满**（**#FF6633** → **#ED6C00** 渐变），表格为半透明玻璃层便于阅读（顶栏 / 表头 / 数据区仍分层）
-- **Android 大屏启动器（可选）**：仓库内 **[`android/`](android/)** — WebView **沉浸式全屏**；启动时用 UDP 向 **`255.255.255.255:39300`** 发送 **`SKXF_DISCOVER`**，服务器 **单播回复 JSON**（`suggestUrl` / `ips`）。协议与构建环境见 **[`plan/android.md`](plan/android.md)**、**[`android/README.md`](android/README.md)**（含 JDK、SDK、Gradle、命令行打包、`adb`）
-- **状态列着色**：表头包含「**项目状态**」或「**任务状态**」的列，单元格文案为 **正常**（亮绿）、**延迟**（浅红），其它文案为**白色**（深橙底上对比清晰）
+把 Excel 看板文件读取成网页（HTTP + WebSocket，同端口），再用 Android 大屏 App **全屏显示**。大屏侧支持 **UDP 自动发现**（避免手输 IP），也支持在设置里写死 URL。
 
 ---
 
-## 理解范畴（部署与网络模型）
+## 快速开始（推荐：Android 大屏 App）
 
-本节帮助建立正确心智模型，避免「广播」「必须写死某个 IP」等误解。
+### 1) 启动服务端（电脑）
 
-### 服务在电脑上做了什么？
+在仓库根目录：
 
-启动 **`start.bat` / `node server.js`** 后，程序在本机 **TCP 3000 端口** 上 **监听**（绑定 `0.0.0.0:3000`），相当于在这台电脑上跑了一个很小的 **网站 + 接口**：
+```bash
+npm install
+node server.js
+```
 
-- 提供网页（如 `/?mode=display`、`/?mode=edit`）；
-- 提供 **`/api/table-state`** 等 HTTP 接口；
-- 在同一端口上提供 **WebSocket**（与 HTTP 共用 3000，避免电视端只放行一个端口时连不上 WS）。
+成功后控制台会输出可访问地址（形如 `http://192.168.x.x:3000/?mode=display`），并提示 UDP 发现端口。
 
-**不会**向外「推送」表格快照：局域网里的终端必须 **发起 TCP（HTTP/WebSocket）** 才能拉到数据。为减轻 **DHCP 换 IP** 带来的地址维护成本，另有一套 **与业务数据无关的 UDP 询问**（见 **[`plan/architecture.md`](plan/architecture.md)**）：大屏端广播发送 UTF-8 **`SKXF_DISCOVER`**，运行 `server.js` 的机器在 **`DASHBOARD_DISCOVERY_PORT`**（默认 **39300**）上应答 **单播 JSON**，其中含 `suggestUrl` 与可选的 `ips` 列表；**不含** Excel/表格正文。将 **`DASHBOARD_DISCOVERY_PORT=0`**（或非法端口）可关闭该能力。
+### 2) 构建并安装 Android APK（一次即可）
 
-### 电视 / 其他设备怎样拿到数据？
+详见 **[`android/README.md`](android/README.md)**（含 JDK/SDK/Gradle、命令行构建、`adb`）。
 
-只有 **主动** 用浏览器（或等价客户端）去访问 **`http://<运行服务的电脑 IPv4>:3000/...`** 时，才会与这台电脑 **建立连接**，从而加载页面、拉取 JSON 或建立 WebSocket。
+APK 默认产物路径：
 
-- **HTTP / 轮询**：谁请求 **`/api/table-state`**，谁拿到当前内存里的表格快照。
-- **WebSocket**：**已经打开看板页并保持连接** 的客户端，才能收到服务端 **推送** 的编辑更新；仍是「连上的那些终端」，不是全网自动投递。
+- `android/app/build/outputs/apk/debug/app-debug.apk`
 
-直观说法可以是「在本机 3000 端口提供服务，局域网里能访问该 IP 的设备都可以连上来取数」；严谨说法是 **TCP 监听 + 客户端主动连接**，而非无线电式广播。
+### 3) 全程用 ADB 调试与打开（不操作显示屏）
 
-### 项目里有没有「IP 配置文件」？
+```bash
+ADB="$HOME/Library/Android/sdk/platform-tools/adb"
 
-**没有。** 服务只监听 `0.0.0.0:3000`，不在仓库里读写任何 IP。启动后看控制台或 **`ipconfig`**，在电视上输入 **`http://该电脑IPv4:3000/?mode=display`** 即可。若希望电视书签长期不变，可在 **Windows / 路由器** 上给这台电脑做 **固定 IPv4**（与项目代码无关）。
+# 连接（无线调试）
+"$ADB" connect 192.168.0.158:5555
 
-### 电视上的地址到底是谁的 IP？
+# 安装并启动
+"$ADB" install -r android/app/build/outputs/apk/debug/app-debug.apk
+"$ADB" shell am start -n com.skxf.display/.MainActivity
 
-地址必须是 **正在运行 Node 服务的那台 Windows 电脑的局域网 IPv4**，不能填 **电视自己的 IP**。换电脑后，新机往往是 **新 IP**；要么给新机配置与原来相同的静态 IP（电视书签可不改），要么改电视上的 **`http://新IP:3000/?mode=display`**。
+# 看当前 WebView 试图加载的 URL / 报错
+"$ADB" shell logcat -d -t 400 | grep -E "SkxfDisplay|WebView loadUrl|主文档" | tail -120
 
-### 多台电脑同时存在时
+# 截图（用于远程确认效果）
+"$ADB" exec-out screencap -p > ./screen.png
+```
 
-每一台运行本项目的电脑，都是 **独立服务**，各自占用 **本机的 3000 端口**，对外分别是 **`http://电脑A的IP:3000`**、**`http://电脑B的IP:3000`** …
+---
 
-一块大屏、一个浏览器标签通常 **同一时间只显示其中一个** 地址的内容；要看另一台电脑上的看板，就改成 **另一台电脑的 IP**（或换书签）。
+## 当前方案（实现要点）
 
-### 「同一网络里都能访问吗？」
+- **端口**：HTTP + WebSocket 共用 **3000**（默认），避免大屏端只放行一个端口时 WS 连不上。
+- **数据源**：服务端从仓库内 Excel 读取并监听改动。
+  - 当前默认路径：`data/excel/研发项目看板2026.xlsx`
+  - 配置位置：[`server.js`](server.js) 的 `EXCEL_FILE`
+- **UDP 发现（Android → Server）**：
+  - 大屏广播 `SKXF_DISCOVER` 到 `255.255.255.255:39300`
+  - 服务端单播回 JSON（`schema/httpPort/ips/suggestUrl/displayPath`）
+  - 端口开关：环境变量 `DASHBOARD_DISCOVERY_PORT`（默认 39300；设为 `0` 关闭）
+- **可达性优化（关键）**：服务端会过滤如 **`198.18.x.x`**（Clash/TUN 假网段）与 `169.254.x.x`，避免大屏拿到不可达地址导致“连接超时”。
+- **大屏 App（WebView）**：
+  - 全屏沉浸式
+  - UDP 自动发现失败时可在 ⚙ 设置 **手动 URL**，并可勾选“仅手动地址”
+  - 主文档加载失败会显示橙色错误页（含失败 URL 与原因），便于 `adb` 远程排查
 
-**大致如此，但有前提：** 设备与服务器之间 **IP 可达**，且 **Windows 防火墙 / 路由器访客隔离 / 不同网段 VLAN** 等未阻止访问 **目标机的 TCP 3000**。若 ping 通但网页打不开，优先检查防火墙与是否用了 **http**（不要用错 **https**）。
+---
+
+## 常用地址与接口
+
+- **显示页**：`http://<电脑IP>:3000/?mode=display`
+- **编辑页（本机）**：`http://localhost:3000?mode=edit`
+- **表格 JSON（自检）**：`http://localhost:3000/api/table-state`
 
 ---
 
 ## 环境要求
 
-在运行本应用之前，请确保已安装以下环境：
+| 依赖 | 说明 |
+|------|------|
+| **Node.js** | 服务端运行时 |
+| **Android 构建链（可选）** | 仅构建 APK 时需要，见 [`android/README.md`](android/README.md) |
 
-| 依赖 | 版本要求 | 说明 |
-|------|----------|------|
-| **Node.js** | >= 14.0 | 服务端运行时，必须安装（[`package.json`](package.json) 声明依赖） |
-| **Android 构建链** | JDK 17、SDK 34 等 | 仅在使用 **[`android/`](android/)** 打出 APK 时需要；完整路径、命令行构建与 **`adb`** 见 **[`android/README.md`](android/README.md)** |
-
-> 本项目不包含 `node_modules` 目录，首次运行需要联网安装依赖包（`ws`、`xlsx`），启动脚本会自动完成安装。
+---
 
 ## 文档索引
 
-| 文档 | 内容 |
-|------|------|
-| **本页** [`README.md`](README.md) | 功能说明、Windows / macOS 启动、网络模型、故障排除 |
-| **[`plan/README.md`](plan/README.md)** | `plan/` 目录导读 |
-| **[`plan/architecture.md`](plan/architecture.md)** | 部署与网络、**`SKXF_DISCOVER`** / UDP 发现协议与 JSON 字段 |
-| **[`plan/android.md`](plan/android.md)** | 大屏 App 场景、权限与发现流程说明 |
-| **[`android/README.md`](android/README.md)** | **Android 环境**（JDK、SDK、`local.properties`、Gradle 8.4）、**命令行 `assembleDebug`**、**APK 路径**、**`adb` 安装/启动** |
-| **[`docs/SECURITY_AUDIT.md`](docs/SECURITY_AUDIT.md)** | 威胁模型、**`DASHBOARD_*`** 等环境变量与安全边界 |
+- **Android 大屏 App（构建/ADB/手动 URL）**：[`android/README.md`](android/README.md)
+- **UDP 发现协议与字段**：[`plan/architecture.md`](plan/architecture.md)
+- **Android 发现细节与权限**：[`plan/android.md`](plan/android.md)
+- **安全与环境变量**：[`docs/SECURITY_AUDIT.md`](docs/SECURITY_AUDIT.md)
 
 ---
-
-## Windows 使用教程
-
-### 第一步：安装 Node.js
-
-1. 访问官网：https://nodejs.org/
-2. 下载 **LTS**（长期支持）版本
-3. 运行安装程序，**勾选 "Add to PATH"**，一路下一步完成安装
-4. 安装完成后，打开 cmd 输入 `node -v`，能显示版本号即安装成功
-
-### 第二步：解压项目
-
-将 `skxf.zip` 解压到任意目录（如 `C:\skxf`）
-
-### 第三步：启动服务
-
-1. 打开解压后的文件夹
-2. 在文件夹地址栏输入 `cmd` 回车，打开命令行
-3. 执行以下命令：
-
-```cmd
-npm install
-node server.js
-```
-
-或直接双击 `start.bat` 一键启动（首次运行会自动安装依赖）。
-
-启动成功后，控制台会打印 **`表格 JSON（大屏拉数）: http://localhost:3000/api/table-state`**。若升级了 `server.js` 却看不到该行或接口返回 `Not Found`，请先 **`stop.bat`** 再 **`start.bat`**，确保 3000 端口上是新进程。
-
-**`stop.bat`（Windows）**：会按窗口标题结束由 **`start.bat`** 打开的控制台（标题为 **`SKXF-DataBoard`**，并终止其中的 Node），再按端口清理残留进程；脚本结束后**自动关闭**自身窗口。若你改过 `start.bat` 里的 `title`，请同步修改 `stop.bat` 中的 `taskkill` 标题匹配。
-
-**可选环境变量**（可在 `start.bat` 中 `set`、或在「系统环境变量」中配置，详见 [`docs/SECURITY_AUDIT.md`](docs/SECURITY_AUDIT.md)）：
-
-| 变量 | 作用 |
-|------|------|
-| `PORT` | HTTP/WebSocket 端口，默认 `3000` |
-| `HOST` | 监听地址，默认 `0.0.0.0` |
-| `DASHBOARD_EDIT_TOKEN` | 非本机编辑时，WebSocket 写权限令牌；编辑页使用 `?mode=edit&token=...` |
-| `DASHBOARD_ALLOW_INSECURE_LAN_EDITS` | 设为 `1`/`true` 时任意局域网客户端可改表（**不推荐**） |
-| `DASHBOARD_CORS_ORIGIN` | 需跨域访问 `/api/table-state` 时，填写允许的单一 `Origin` |
-| `DASHBOARD_DISCOVERY_PORT` | UDP 发现监听端口，默认 **`39300`**；设为 **`0`** 或无效值则关闭 |
-
-启动成功后，在浏览器访问：
-
-| 模式 | 地址 | 说明 |
-|------|------|------|
-| 编辑模式 | `http://localhost:3000?mode=edit` | 本机编辑表格（回环地址默认具备写权限） |
-| 编辑模式（局域网其它电脑） | `http://<服务器 IPv4>:3000?mode=edit&token=<令牌>` | 需服务端已设置 `DASHBOARD_EDIT_TOKEN`，与 URL 中 `token` 一致 |
-| 显示模式 | `http://<运行服务的电脑 IPv4>:3000?mode=display` | 信息发布屏（IPv4 见启动窗口或 `ipconfig`） |
-
-### 让信息发布屏访问
-
-1. **开放防火墙**：首次启动时 Windows 防火墙弹窗请选择 **允许访问**（专用网络）
-2. **电视浏览器** 输入 **`http://<电脑 IPv4>:3000/?mode=display`**，其中 IPv4 为运行 **`start.bat` 的那台电脑** 的局域网地址（不是电视自己的 IP）
-
-若希望电视书签**长期不变**，可在系统或路由器上为该电脑绑定 **固定 IPv4**（与项目代码无关）。
-
-电视端 **Chrome 异常**（多标签、错误地址、长期白屏）时，可在电视上 **清除 Chrome 应用数据** 或 **卸载更新/重装**，再手动输入上述显示地址。
-
-### 使用 ADB 在 Android 大屏上打开地址（可选）
-
-当电视已开启 **USB 调试** 或 **无线调试**（`adb tcpip 5555` 等），且电脑已安装 [Android Platform Tools](https://developer.android.com/tools/releases/platform-tools)（`adb`）时，可在电脑上执行：
-
-```cmd
-adb connect <电视IPv4>:5555
-adb shell am start -a android.intent.action.VIEW -d "http://<运行服务的电脑IPv4>:3000/?mode=display"
-```
-
-示例：电视 `192.168.0.158`、服务电脑 `192.168.0.188` 时，最后一行 URL 为 `http://192.168.0.188:3000/?mode=display`。请先保证 **`start.bat` 已运行** 且防火墙放行 **3000**。
-
-### Android 大屏 App（自动全屏 + 自动地址）
-
-推荐使用仓库中的 **[`android/`](android/)** 模块打出 APK 装在大屏设备上：**打开 App 即可进入沉浸式全屏 WebView**，不再需要每次在系统浏览器里手输网址、再找全屏。
-
-- **工作原理（与 [`plan/architecture.md`](plan/architecture.md) 一致）**：App 向局域网 **广播** `SKXF_DISCOVER`；**[`server.js`](server.js)** 在 **`0.0.0.0:DASHBOARD_DISCOVERY_PORT`**（默认 39300）**收包后向探测来源单播 JSON**（含 `suggestUrl`、`ips`、`httpPort`）。**电脑换 IP** 后，将 App **重新切到前台** 会再走发现；亦可在 ⚙️ 填 **兜底 URL**。**PC 防火墙须允许 UDP 39300 入站**（应答报文发给客户端）。大屏端细节另见 **[`plan/android.md`](plan/android.md)**。
-- **构建与安装**：请参阅 **[`android/README.md`](android/README.md)** → 章节 **「环境要求」**、**「命令行构建 APK」**、**「使用 ADB 安装与启动」**。
-- **网络限制**：与「浏览器输 IP」同理，要求大屏与服务器 **二层广播域可达**（复杂 VLAN / 访客隔离可能收不到 UDP，改用设置里的 **手动 HTTP 地址**）。
-
----
-
-## 同步机制与接口
-
-| 能力 | 说明 |
-|------|------|
-| **WebSocket** | 与页面同源（`ws://<页面 host>/`）；日志 **`数据已广播: N 个`** 中 `N` 为当前在线客户端数。 |
-| **`GET /api/table-state`** | 返回当前内存中的表格 JSON，可用于自检或大屏 HTTP 拉取。 |
-| **显示端轮询** | 显示模式约每 **8 秒** 请求一次 `/api/table-state`，WebSocket 不可用时仍能更新表体。 |
-| **编辑端** | 首屏 HTTP 拉取；编辑以 WebSocket 为主，避免轮询覆盖未保存编辑。 |
-| **写权限** | 默认仅 **本机回环** 的 WebSocket 可修改表格；局域网大屏为只读。非本机编辑需配置 `DASHBOARD_EDIT_TOKEN`。详见 [`docs/SECURITY_AUDIT.md`](docs/SECURITY_AUDIT.md)。 |
-
----
-
-## 故障排除（常见问题）
-
-1. **电视网页空白或加载失败**  
-   - 使用 **`http://`**，地址必须是 **运行服务的电脑 IPv4**，不是电视 IP。  
-   - 本机访问 `http://127.0.0.1:3000/api/table-state` 应有 JSON；若 **`Not Found`**：先 **`stop.bat`** 再 **`start.bat`**。  
-   - **Clash 等代理** 请对局域网 **直连**。
-
-2. **`数据已广播: 0 个 WebSocket 客户端`**  
-   - 无 WS 时大屏仍靠 **`/api/table-state`** 轮询更新。
-
-3. **`EADDRINUSE`**  
-   - 运行 **`stop.bat`** 后再启动。
-
----
-
-## macOS 使用教程
-
-### 第一步：安装 Node.js
-
-```bash
-brew install node
-```
-
-或从 https://nodejs.org/ 下载安装包
-
-安装完成后，终端输入 `node -v` 确认安装成功。
-
-### 第二步：启动服务
-
-```bash
-cd /path/to/skxf
-npm install
-node server.js
-```
-
-或运行 `./start.sh` 一键启动（首次运行会自动安装依赖）。启动脚本会打印本机 IP，**信息发布屏请在电视浏览器中手动输入** `http://<该IP>:3000/?mode=display`。
-
-停止服务可使用 `./stop.sh`。环境变量（`PORT`、`DASHBOARD_EDIT_TOKEN` 等）与 Windows 相同，可在启动前 `export` 或写入 shell 配置；说明见 [`docs/SECURITY_AUDIT.md`](docs/SECURITY_AUDIT.md)。
-
-### Android APK（macOS 命令行，可选）
-
-不打开发行版安装包时，可在终端按 **[`android/README.md`](android/README.md)** 使用 **Gradle `assembleDebug`** 与 **`adb install`**；Debug 包默认路径为 **`android/app/build/outputs/apk/debug/app-debug.apk`**。
-
----
-
-## 项目结构
-
-```
-skxf/
-├── plan/               # 大屏 / Android 部署方案与协议说明
-├── android/            # Kotlin 大屏启动器（WebView 全屏 + UDP 发现）
-├── server.js           # Node.js 服务器（HTTP + WebSocket + UDP 发现 SKXF_DISCOVER）
-├── public/
-│   └── index.html      # 单页面应用（显示/编辑、品牌色与状态列样式）
-├── docs/
-│   └── SECURITY_AUDIT.md  # 安全与边界审查留痕（威胁模型、环境变量、缓解措施）
-├── data/               # Excel 数据文件目录
-├── package.json        # npm 配置及依赖声明
-├── start.bat           # Windows 一键启动脚本
-├── start.sh            # macOS/Linux 一键启动脚本
-├── stop.bat            # Windows：结束 start 窗口 + 按端口清理，执行完自动退出
-├── stop.sh             # macOS/Linux 停止服务脚本
-└── README.md           # 本文件
-```
-
-> **注意**：`node_modules` 目录未包含在分发包中，首次启动时需通过 `npm install` 安装。
-
----
-
-## 使用说明
-
-### 编辑模式
-
-1. **本机**：浏览器打开 `http://localhost:3000?mode=edit`  
-2. **局域网其它电脑**：服务端设置 `DASHBOARD_EDIT_TOKEN` 后，使用 `http://<服务器IP>:3000?mode=edit&token=<同一令牌>`  
-3. 直接点击单元格编辑内容；工具栏可 **添加行**（删除行在表格右侧）  
-4. 修改通过 WebSocket 推送到已打开的显示端；未设令牌时，非本机连接无法保存写操作
-
-### 显示模式
-
-1. 在信息发布屏打开 `http://<服务器IP>:3000?mode=display`
-2. 页面全屏显示表格数据（首屏及约每 8 秒通过 **`/api/table-state`** 与内存同步；WebSocket 在线时编辑可近乎实时更新）
-3. **深橙铺满主题**：整页 **#FF6633～#ED6C00** 渐变背景；表格为半透明玻璃层，主文字浅色
-4. **状态列**：列名含「项目状态」「任务状态」时，**正常**（亮绿）、**延迟**（浅红）、其它字为白色
-5. 自动接收编辑端推送的数据更新（WebSocket）；右上角可切换全屏
-
-## 数据来源
-
-应用启动时从 **`server.js` 中 `EXCEL_FILE` 常量** 指向的 **Excel** 读取数据（当前仓库默认路径为企微盘下的「研发项目看板」文件，可按环境修改该常量）。
-
-- **自动监听**：文件修改后会自动重新加载并推送到显示端，无需重启服务
-- **回退机制**：若文件不存在或读取失败，将使用内置的默认数据
-
-> 数据来源路径以 `server.js` 为准；若在其它环境部署请同步修改 **`EXCEL_FILE`**。
-
-## 注意事项
-
-- **首次运行需联网**：项目不包含 `node_modules`，首次启动需联网执行 `npm install` 安装依赖
-- 数据存储在服务端内存中，重启服务器后数据将重置；**Excel 文件变更会重新加载并覆盖内存**（与 [`docs/SECURITY_AUDIT.md`](docs/SECURITY_AUDIT.md) 中说明一致）
-- **安全**：默认大屏所在网络中的设备**不能**通过 WebSocket 匿名改表；生产环境请阅读 **[`docs/SECURITY_AUDIT.md`](docs/SECURITY_AUDIT.md)**，按需配置令牌、防火墙或 CORS
-- 如需持久化存储，可扩展使用文件或数据库
 
 ## License
 

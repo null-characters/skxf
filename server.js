@@ -7,7 +7,8 @@ const xlsx = require('xlsx');
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
-const EXCEL_FILE = path.join(__dirname, '../WeDrive/深圳市比尔达科技有限公司/台账/2026台账/研发项目看板2026.xlsx');
+/** 全景计划表 Excel（第三张工作表须为「全景计划」） */
+const EXCEL_FILE = path.join(__dirname, 'data/excel/研发项目看板2026.xlsx');
 const PUBLIC_ROOT = path.join(__dirname, 'public');
 const MAX_WS_PAYLOAD = 256 * 1024;
 const EDIT_TOKEN = process.env.DASHBOARD_EDIT_TOKEN || '';
@@ -18,18 +19,50 @@ const MUTATION_TYPES = new Set(['update', 'addRow', 'deleteRow', 'updateTitle'])
 
 const os = require('os');
 
-/** 读取当前非回环 IPv4（DHCP 变更后每次调用都会是最新列表） */
+/** 排除 Clash 等 TUN 假地址、链路本地等，避免 UDP 发现把大屏指到不可达 IP（连接超时） */
+function isUsableLanIPv4(addr) {
+    if (!addr || typeof addr !== 'string') return false;
+    const parts = addr.split('.');
+    if (parts.length !== 4) return false;
+    const oct = parts.map((p) => Number(p));
+    if (oct.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return false;
+    const [a, b] = oct;
+    // 198.18.0.0/15 —— 常见于 Clash / 类代理的 TUN，局域网设备无法访问
+    if (a === 198 && b >= 18 && b <= 19) return false;
+    if (a === 169 && b === 254) return false;
+    return true;
+}
+
+function isIPv4Iface(iface) {
+    return iface.family === 'IPv4' || iface.family === 4;
+}
+
+/** 越小越优先：192.168 / 10 / 172.16–31 私网在前，便于 pickLanIpForClient 与 suggestUrl */
+function lanPreferenceRank(ip) {
+    const [a, b] = ip.split('.').map(Number);
+    if (a === 192 && b === 168) return 0;
+    if (a === 10) return 1;
+    if (a === 172 && b >= 16 && b <= 31) return 2;
+    return 9;
+}
+
+/** 读取当前非回环、可用于大屏访问的 IPv4（DHCP 变更后每次调用都会是最新列表） */
 function getLanIPv4Addresses() {
-    const list = [];
+    const set = new Set();
     const interfaces = os.networkInterfaces();
     for (const name of Object.keys(interfaces)) {
         for (const iface of interfaces[name]) {
-            if (iface.family === 'IPv4' && !iface.internal) {
-                list.push(iface.address);
+            if (isIPv4Iface(iface) && !iface.internal && isUsableLanIPv4(iface.address)) {
+                set.add(iface.address);
             }
         }
     }
-    return list;
+    return Array.from(set).sort((x, y) => {
+        const rx = lanPreferenceRank(x);
+        const ry = lanPreferenceRank(y);
+        if (rx !== ry) return rx - ry;
+        return x.localeCompare(y, undefined, { numeric: true });
+    });
 }
 
 const DISCOVERY_PORT_RAW = process.env.DASHBOARD_DISCOVERY_PORT;
