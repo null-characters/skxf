@@ -2,7 +2,7 @@
 
 面向 **信息发布屏**：单 Activity + **WebView 全屏**加载大屏 URL；启动时用 **UDP 发现**解析服务地址，避免手写 DHCP 变化的 IP。
 
-下文假设使用 **Kotlin**、**AndroidX**、**minSdk 21**（可按设备上调）。独立模块或新建「Empty Activity」工程均可。
+下文假设使用 **Kotlin**、**AndroidX**、**minSdk 24**（与本项目 Android 工程一致；可按设备上调）。独立模块或新建「Empty Activity」工程均可。
 
 ## 1. 依赖与 Gradle
 
@@ -11,7 +11,8 @@
 ```kotlin
 android {
     defaultConfig {
-        minSdk = 21
+        // 本项目当前为 24（见 android/app/build.gradle.kts）
+        minSdk = 24
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

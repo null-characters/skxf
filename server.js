@@ -49,7 +49,15 @@ function lanPreferenceRank(ip) {
 /** 读取当前非回环、可用于大屏访问的 IPv4（DHCP 变更后每次调用都会是最新列表） */
 function getLanIPv4Addresses() {
     const set = new Set();
-    const interfaces = os.networkInterfaces();
+    let interfaces;
+    try {
+        interfaces = os.networkInterfaces();
+    } catch (e) {
+        // 某些受限环境（沙盒/权限/系统异常）可能导致 uv_interface_addresses 失败；
+        // 不应阻断服务启动：退化为仅打印 localhost/手工查 IP。
+        console.warn('[网络] 无法枚举网卡地址，将退化为手动指定局域网 IP：', e && e.message ? e.message : e);
+        return [];
+    }
     for (const name of Object.keys(interfaces)) {
         for (const iface of interfaces[name]) {
             if (isIPv4Iface(iface) && !iface.internal && isUsableLanIPv4(iface.address)) {

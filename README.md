@@ -40,6 +40,17 @@ node server.js
 - UDP 发现端口（默认 **39300**）
 - `GET /api/table-state` 自检接口
 
+常见启动问题：
+
+- **端口被占用（EADDRINUSE）**：说明 `3000` 已被其它进程占用。
+  - macOS：先 `./stop.sh`，或换端口启动：`PORT=3002 node server.js`（也可用脚本：`PORT=3002 ./start.sh`）
+  - Windows：先 `stop.bat`，或换端口启动：`set PORT=3002 && node server.js`（也可用脚本：`start.bat 3002`）
+
+也可以直接使用脚本启动/停止（会在启动前检查端口占用）：
+
+- macOS：`./start.sh` / `./stop.sh`
+- Windows：`start.bat` / `stop.bat`
+
 ### 2) 构建 APK（一次即可）并安装到显示屏
 
 完整构建说明见 [`android/README.md`](android/README.md)。
