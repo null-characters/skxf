@@ -162,86 +162,323 @@ class MainActivity : AppCompatActivity() {
         val safeDesc = description.replace("<", "&lt;")
         val savedAtText = formatSavedAt(savedAtMs)
         val safeSavedAt = savedAtText.replace("<", "&lt;")
-        val safeRetryDisplayUrl = retryDisplayUrl.replace("<", "&lt;")
         val safeRetryApiUrl = retryApiUrl.replace("<", "&lt;")
+        val retryDisplayJs = JSONObject.quote(retryDisplayUrl)
+        val retryApiJs = JSONObject.quote(retryApiUrl)
         return """
-            <html>
-              <head>
-                <meta charset="utf-8"/>
-                <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no"/>
-                <title>数据看板（离线）</title>
-                <style>
-                  * { box-sizing: border-box; }
-                  body { margin:0; background:#FF5000; color:rgba(255,255,255,.96); font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; overflow:hidden; }
-                  .wrap { height:100vh; height:100dvh; display:flex; flex-direction:column; padding:6px; }
-                  .header { flex: 0 0 auto; padding:14px 24px; border-bottom:2px solid rgba(255,255,255,.28); background: rgba(0,0,0,.08); position:relative; }
-                  .title { font-size:28px; font-weight:700; text-align:center; text-shadow: 0 2px 12px rgba(0,0,0,.28); }
-                  .meta { position:absolute; right:18px; top:14px; font-size:13px; color:rgba(255,248,240,.82); text-align:right; line-height:1.35; }
-                  .table { flex:1 1 0%; min-height:0; overflow:hidden; padding:6px 0 2px 0; }
-                  .glass { height:100%; border:1px solid rgba(255,255,255,.28); border-radius:14px; background: rgba(0,0,0,.18); overflow:hidden; }
-                  table { width:100%; border-collapse:collapse; table-layout:fixed; }
-                  thead th { padding:12px 10px; font-size:16px; font-weight:700; border-bottom:1px solid rgba(255,255,255,.28); background: rgba(0,0,0,.22); text-align:center; }
-                  tbody td { padding:12px 10px; font-size:15px; border-bottom:1px solid rgba(255,255,255,.12); text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-                  tbody tr:nth-child(even) td { background: rgba(0,0,0,.10); }
-                  .status { flex:0 0 auto; font-size:13px; padding:10px 18px; color:rgba(255,248,240,.82); text-shadow: 0 1px 2px rgba(0,0,0,.2); }
-                  code { background: rgba(0,0,0,.25); padding:2px 6px; border-radius:4px; }
-                </style>
-              </head>
-              <body>
-                <div class="wrap">
-                  <div class="header">
-                    <div class="title">BILLDA研发项目管理看板</div>
-                    <div class="meta">
-                      <div>离线快照：${safeSavedAt}</div>
-                      <div style="opacity:.9; font-size:12px; margin-top:4px;">无法连接：${safeFailUrl}</div>
-                      <div style="opacity:.9; font-size:12px;">原因：${safeDesc}</div>
-                      <div style="opacity:.85; font-size:12px; margin-top:6px;">自动重连：${safeRetryApiUrl}</div>
-                    </div>
-                  </div>
-                  <div class="table">
-                    <div class="glass">
-                      <div style="overflow:auto; height:100%;">
-                        <table id="t"><thead id="th"></thead><tbody id="tb"></tbody></table>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="status" id="status">● 离线中</div>
-                </div>
-                <script>
-                  const data = ${tableJson};
-                  const columns = (data && Array.isArray(data.columns)) ? data.columns : [];
-                  const rows = (data && Array.isArray(data.rows)) ? data.rows : [];
-                  const th = document.getElementById('th');
-                  const tb = document.getElementById('tb');
-                  th.innerHTML = '<tr>' + columns.map(c => `<th>${'$'}{String(c ?? '')}</th>`).join('') + '</tr>';
-                  const maxRows = 19;
-                  const showRows = rows.slice(0, Math.min(rows.length, maxRows));
-                  tb.innerHTML = showRows.map(r => {
-                    const cells = Array.isArray(r.data) ? r.data : [];
-                    return '<tr>' + columns.map((_, i) => `<td>${'$'}{String(cells[i] ?? '')}</td>`).join('') + '</tr>';
-                  }).join('');
-                  const status = document.getElementById('status');
-                  status.textContent = `● 离线中（自动重连中…） | 1-${'$'}{showRows.length}/${'$'}{rows.length}`;
+            <html lang="zh-CN">
+            <head>
+              <meta charset="utf-8"/>
+              <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no"/>
+              <title>数据看板（离线）</title>
+              <style>
+                * { margin:0; padding:0; box-sizing:border-box; }
+                :root {
+                  --brand-vivid: #FF5000;
+                  --page-orange-full: #FF5000;
+                  --glass-line: rgba(255, 255, 255, 0.28);
+                  --glass-fill: rgba(0, 0, 0, 0.18);
+                  --glass-fill-strong: rgba(0, 0, 0, 0.32);
+                  --text-on-orange: rgba(255, 255, 255, 0.96);
+                  --text-on-orange-muted: rgba(255, 248, 240, 0.82);
+                  --radius-lg: 14px;
+                }
 
-                  const retryDisplayUrl = ${"\"\"\""}${safeRetryDisplayUrl}${"\"\"\""};
-                  const retryApiUrl = ${"\"\"\""}${safeRetryApiUrl}${"\"\"\""};
-                  function probeOnce() {
-                    if (!retryApiUrl) return;
-                    const controller = new AbortController();
-                    const t = setTimeout(() => controller.abort(), 1600);
-                    fetch(retryApiUrl, { cache: 'no-store', signal: controller.signal })
-                      .then(r => { clearTimeout(t); return r.ok ? r.text() : Promise.reject(new Error('HTTP '+r.status)); })
-                      .then(_ => {
-                        // 服务端恢复：切回在线页（会自动连 WS）
-                        if (retryDisplayUrl) location.href = retryDisplayUrl;
-                      })
-                      .catch(_ => {});
+                body.display-mode {
+                  background: var(--page-orange-full);
+                  background-color: var(--brand-vivid);
+                  color: var(--text-on-orange);
+                  font-family: 'Microsoft YaHei', 'PingFang SC', 'Segoe UI', sans-serif;
+                  height: 100vh;
+                  height: 100dvh;
+                  overflow: hidden;
+                  display: flex;
+                  flex-direction: column;
+                  -webkit-font-smoothing: antialiased;
+                  padding:
+                    max(6px, env(safe-area-inset-top, 0px))
+                    max(6px, env(safe-area-inset-right, 0px))
+                    max(6px, env(safe-area-inset-bottom, 0px))
+                    max(6px, env(safe-area-inset-left, 0px));
+                }
+
+                /* 电视过扫描：整体缩放并居中（与在线显示一致） */
+                body.display-mode .display-safe {
+                  flex: 1 1 0%;
+                  min-width: 0;
+                  min-height: 0;
+                  overflow: hidden;
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                }
+                body.display-mode .display-safe-inner {
+                  flex: 1 1 0%;
+                  min-width: 0;
+                  min-height: 0;
+                  width: calc(100% / 0.86);
+                  max-width: calc(100% / 0.86);
+                  display: flex;
+                  flex-direction: column;
+                  transform: scale(0.86);
+                  transform-origin: top center;
+                  margin-bottom: calc(-14% / 0.86 * 0.86);
+                  height: calc(100% / 0.86);
+                }
+
+                body.display-mode .header {
+                  background: linear-gradient(180deg, rgba(0, 0, 0, 0.12) 0%, rgba(0, 0, 0, 0.06) 100%);
+                  padding: 14px 24px;
+                  padding-right: max(56px, env(safe-area-inset-right, 0px), 48px);
+                  border-bottom: 2px solid var(--glass-line);
+                  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  position: relative;
+                  flex-shrink: 0;
+                  min-width: 0;
+                }
+                body.display-mode .header .time {
+                  font-size: 15px;
+                  font-weight: 500;
+                  color: var(--text-on-orange-muted);
+                  white-space: nowrap;
+                  position: absolute;
+                  right: max(56px, env(safe-area-inset-right, 0px), 48px);
+                  letter-spacing: 0.02em;
+                  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+                }
+                body.display-mode .header h1 {
+                  font-size: 28px;
+                  font-weight: 700;
+                  color: #fff;
+                  letter-spacing: 0.04em;
+                  white-space: nowrap;
+                  text-align: center;
+                  width: 100%;
+                  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.28);
+                }
+
+                body.display-mode .table-container {
+                  flex: 1 1 0%;
+                  min-width: 0;
+                  min-height: 0;
+                  padding: 6px 0 2px 0;
+                  overflow: hidden;
+                  display: flex;
+                  flex-direction: column;
+                }
+
+                body.display-mode .table-x-scroll {
+                  flex: 1 1 0%;
+                  min-height: 0;
+                  overflow: hidden;
+                  border: 1px solid var(--glass-line);
+                  border-radius: var(--radius-lg);
+                  background: var(--glass-fill);
+                  backdrop-filter: blur(10px);
+                  -webkit-backdrop-filter: blur(10px);
+                  box-shadow: 0 12px 42px rgba(0, 0, 0, 0.18);
+                }
+
+                body.display-mode .table-x-scroll table {
+                  width: 100%;
+                  border-collapse: collapse;
+                  table-layout: fixed;
+                }
+
+                body.display-mode thead th {
+                  padding: 12px 10px;
+                  font-size: 16px;
+                  font-weight: 700;
+                  border-bottom: 1px solid var(--glass-line);
+                  background: rgba(0, 0, 0, 0.22);
+                  text-align: center;
+                  color: rgba(255,255,255,.96);
+                }
+
+                body.display-mode tbody td {
+                  padding: 12px 10px;
+                  font-size: 15px;
+                  border-bottom: 1px solid rgba(255,255,255,.12);
+                  text-align: center;
+                  white-space: nowrap;
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                  color: rgba(255,255,255,.94);
+                }
+                body.display-mode tbody tr:nth-child(even) td { background: rgba(0,0,0,.10); }
+
+                /* 状态列着色（与在线一致） */
+                body.display-mode tbody td.cell-status-ok { color: #b9f6ca; font-weight: 700; }
+                body.display-mode tbody td.cell-status-late { color: #ffcdd2; font-weight: 700; }
+                body.display-mode tbody td.cell-status-neutral { color: rgba(255,255,255,.94); }
+
+                body.display-mode .status-indicator {
+                  font-size: 13px;
+                  padding: 10px 18px;
+                  color: var(--text-on-orange-muted);
+                  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+                  flex-shrink: 0;
+                }
+
+                body.display-mode .offline-meta {
+                  position: fixed;
+                  left: 10px;
+                  top: 10px;
+                  font-size: 12px;
+                  color: rgba(255,248,240,.82);
+                  background: rgba(0,0,0,.18);
+                  border: 1px solid rgba(255,255,255,.18);
+                  border-radius: 10px;
+                  padding: 10px 12px;
+                  max-width: min(520px, 70vw);
+                  line-height: 1.35;
+                }
+                body.display-mode .offline-meta code {
+                  background: rgba(0,0,0,.22);
+                  padding: 2px 6px;
+                  border-radius: 6px;
+                }
+              </style>
+            </head>
+            <body class="display-mode">
+              <div class="offline-meta">
+                <div>离线快照：<code>${safeSavedAt}</code></div>
+                <div style="margin-top:6px; opacity:.95;">无法连接：<code>${safeFailUrl}</code></div>
+                <div style="opacity:.95;">原因：<code>${safeDesc}</code></div>
+                <div style="margin-top:6px; opacity:.9;">自动重连：<code>${safeRetryApiUrl}</code></div>
+              </div>
+
+              <script>
+                const tableData = ${tableJson};
+                let scrollIndex = 0;
+                const ROWS_PER_PAGE = 19;
+
+                function escapeHtml(str) {
+                  if (!str) return '';
+                  return String(str)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;');
+                }
+
+                function isProjectOrTaskStatusColumn(colName) {
+                  const s = String(colName || '');
+                  return s.includes('项目状态') || s.includes('任务状态');
+                }
+
+                function statusCellClass(colName, rawValue) {
+                  if (!isProjectOrTaskStatusColumn(colName)) return '';
+                  const v = String(rawValue == null ? '' : rawValue).trim();
+                  if (v === '正常') return 'cell-status-ok';
+                  if (v === '延迟') return 'cell-status-late';
+                  return 'cell-status-neutral';
+                }
+
+                function renderDisplayMode() {
+                  const now = new Date();
+                  const timeStr = now.toLocaleString('zh-CN', {
+                    year: 'numeric', month: '2-digit', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit', second: '2-digit'
+                  });
+
+                  const title = (tableData && tableData.title) ? tableData.title : '数据看板';
+                  const columns = (tableData && Array.isArray(tableData.columns)) ? tableData.columns : [];
+                  const rows = (tableData && Array.isArray(tableData.rows)) ? tableData.rows : [];
+                  const totalRows = rows.length || 0;
+
+                  let html =
+                    '<div class="display-safe">' +
+                    '<div class="display-safe-inner">' +
+                    '<div class="header">' +
+                    '<h1>' + escapeHtml(title) + '</h1>' +
+                    '<div class="time">' + timeStr + '</div>' +
+                    '</div>' +
+                    '<div class="table-container">' +
+                    '<div class="table-x-scroll">' +
+                    '<table><thead><tr>';
+
+                  columns.forEach((col, idx) => {
+                    const w = (tableData.colWidths && tableData.colWidths[idx])
+                      ? (' style="min-width:' + tableData.colWidths[idx] + '"')
+                      : '';
+                    html += '<th' + w + '>' + escapeHtml(col) + '</th>';
+                  });
+                  html += '</tr></thead><tbody>';
+
+                  const visibleRows = [];
+                  for (let i = 0; i < ROWS_PER_PAGE && totalRows > 0; i++) {
+                    const idx = (scrollIndex + i) % totalRows;
+                    visibleRows.push(rows[idx]);
                   }
-                  setInterval(probeOnce, 5000);
-                  // 先立即探测一次
-                  setTimeout(probeOnce, 800);
-                </script>
-              </body>
+
+                  visibleRows.forEach((row) => {
+                    const data = Array.isArray(row.data) ? row.data : [];
+                    html += '<tr>';
+                    data.forEach((cell, colIdx) => {
+                      const colName = columns[colIdx] || '';
+                      const sc = statusCellClass(colName, cell);
+                      const clsAttr = sc ? (' class="' + sc + '"') : '';
+                      html += '<td' + clsAttr + '>' + escapeHtml(cell) + '</td>';
+                    });
+                    html += '</tr>';
+                  });
+
+                  html +=
+                    '</tbody></table></div></div></div></div>' +
+                    '<div class="status-indicator">● 离线中（自动重连中…） | ' +
+                      (scrollIndex + 1) + '-' +
+                      Math.min(scrollIndex + ROWS_PER_PAGE, totalRows) + '/' +
+                      totalRows +
+                    '</div>';
+
+                  document.body.insertAdjacentHTML('beforeend', html);
+                }
+
+                // 首屏渲染
+                renderDisplayMode();
+
+                // 显示模式：更新时间、滚动数据（对齐在线体验）
+                setInterval(() => {
+                  const timeEl = document.querySelector('.header .time');
+                  if (!timeEl) return;
+                  const now = new Date();
+                  timeEl.textContent = now.toLocaleString('zh-CN', {
+                    year: 'numeric', month: '2-digit', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit', second: '2-digit'
+                  });
+                }, 1000);
+
+                setInterval(() => {
+                  const rows = (tableData && Array.isArray(tableData.rows)) ? tableData.rows : [];
+                  if (!rows || rows.length <= ROWS_PER_PAGE) return;
+                  scrollIndex = (scrollIndex + 1) % rows.length;
+                  // 只重建表格部分，避免闪烁：简单起见整体重渲染
+                  // 删除 display-safe 节点再渲染
+                  const safe = document.querySelector('.display-safe');
+                  if (safe) safe.remove();
+                  renderDisplayMode();
+                }, 5000);
+
+                // 自动重连：探测 /api/table-state 成功后跳回在线页
+                const retryDisplayUrl = $retryDisplayJs;
+                const retryApiUrl = $retryApiJs;
+                function probeOnce() {
+                  if (!retryApiUrl) return;
+                  const controller = new AbortController();
+                  const t = setTimeout(() => controller.abort(), 1600);
+                  fetch(retryApiUrl, { cache: 'no-store', signal: controller.signal })
+                    .then(r => { clearTimeout(t); return r.ok ? r.text() : Promise.reject(new Error('HTTP '+r.status)); })
+                    .then(_ => { if (retryDisplayUrl) location.href = retryDisplayUrl; })
+                    .catch(_ => {});
+                }
+                setInterval(probeOnce, 5000);
+                setTimeout(probeOnce, 800);
+              </script>
+            </body>
             </html>
         """.trimIndent()
     }
