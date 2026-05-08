@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SKXF 数据看板</string>
+    <string name="settings">设置</string>
+    <string name="manual_url_hint">大屏地址（可选，例如 http://192.168.1.10:3000/?mode=display）</string>
+    <string name="manual_only_label">仅用上述地址（关闭 UDP 自动发现）</string>
+    <string name="save">保存</string>
+    <string name="discover_hint">自动发现端口 39300，请确保电脑上已启动看板并开始广播。</string>
+</resources>

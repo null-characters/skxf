@@ -1,6 +1,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const dgram = require('dgram');
 const WebSocket = require('ws');
 const xlsx = require('xlsx');
 
@@ -16,7 +17,6 @@ const CORS_ORIGIN = process.env.DASHBOARD_CORS_ORIGIN || '';
 const MUTATION_TYPES = new Set(['update', 'addRow', 'deleteRow', 'updateTitle']);
 
 const os = require('os');
-const dgram = require('dgram');
 
 /** 读取当前非回环 IPv4（DHCP 变更后每次调用都会是最新列表） */
 function getLanIPv4Addresses() {
