@@ -15,17 +15,32 @@ const CORS_ORIGIN = process.env.DASHBOARD_CORS_ORIGIN || '';
 
 const MUTATION_TYPES = new Set(['update', 'addRow', 'deleteRow', 'updateTitle']);
 
-// 本机所有局域网 IPv4（启动时打印，供电视浏览器填写；项目内无 IP 配置文件）
 const os = require('os');
-const interfaces = os.networkInterfaces();
-const lanIPv4List = [];
-for (const name of Object.keys(interfaces)) {
-    for (const iface of interfaces[name]) {
-        if (iface.family === 'IPv4' && !iface.internal) {
-            lanIPv4List.push(iface.address);
+const dgram = require('dgram');
+
+/** 读取当前非回环 IPv4（DHCP 变更后每次调用都会是最新列表） */
+function getLanIPv4Addresses() {
+    const list = [];
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+        for (const iface of interfaces[name]) {
+            if (iface.family === 'IPv4' && !iface.internal) {
+                list.push(iface.address);
+            }
         }
     }
+    return list;
 }
+
+const DISCOVERY_PORT_RAW = process.env.DASHBOARD_DISCOVERY_PORT;
+const DISCOVERY_PORT =
+    DISCOVERY_PORT_RAW === undefined || DISCOVERY_PORT_RAW === ''
+        ? 39300
+        : Number(DISCOVERY_PORT_RAW);
+/** 0、无效端口或过大值关闭 UDP 发现 */
+const DISCOVERY_UDP_ENABLED =
+    Number.isFinite(DISCOVERY_PORT) && DISCOVERY_PORT > 0 && DISCOVERY_PORT <= 65535;
+
 // 默认表格数据（Excel读取失败时回退）
 const defaultTableData = {
     title: '数据看板',
@@ -453,7 +468,55 @@ function getContentType(filePath) {
     return types[ext] || 'text/plain';
 }
 
+/** 多网卡时优先选与客户端同一 C 段（/24）的地址，便于 DHCP 变更后 suggestUrl 仍可用 */
+function pickLanIpForClient(clientIp, ips) {
+    if (!ips.length) return null;
+    if (!clientIp) return ips[0];
+    const m = /^(\d+)\.(\d+)\.(\d+)\./.exec(clientIp);
+    if (!m) return ips[0];
+    const prefix = `${m[1]}.${m[2]}.${m[3]}.`;
+    const hit = ips.find((ip) => ip.startsWith(prefix));
+    return hit || ips[0];
+}
+
+function startDiscoveryUdp() {
+    if (!DISCOVERY_UDP_ENABLED) {
+        const hint =
+            DISCOVERY_PORT_RAW === undefined || DISCOVERY_PORT_RAW === ''
+                ? ''
+                : `（当前 DASHBOARD_DISCOVERY_PORT=${DISCOVERY_PORT_RAW}）`;
+        console.log(`  局域网发现: 已关闭${hint}`);
+        return;
+    }
+    const sock = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+    sock.on('error', (err) => {
+        console.error('[发现] UDP 错误:', err.message);
+    });
+    sock.on('message', (msg, rinfo) => {
+        if (msg.toString('utf8').trim() !== 'SKXF_DISCOVER') return;
+        const ips = getLanIPv4Addresses();
+        const preferred = pickLanIpForClient(rinfo.address, ips);
+        const payload = JSON.stringify({
+            schema: 1,
+            httpPort: PORT,
+            ips,
+            suggestUrl: preferred ? `http://${preferred}:${PORT}/?mode=display` : null,
+            displayPath: '/?mode=display',
+        });
+        sock.send(Buffer.from(payload, 'utf8'), rinfo.port, rinfo.address, (err) => {
+            if (err) console.warn('[发现] 回复失败:', err.message);
+        });
+        console.log(`[发现] → ${rinfo.address}:${rinfo.port} 已回复 (${ips.length} 个 IPv4)`);
+    });
+    sock.bind(DISCOVERY_PORT, '0.0.0.0', () => {
+        console.log(
+            `  局域网发现: UDP ${DISCOVERY_PORT}，广播或单播发送 UTF-8 载荷 SKXF_DISCOVER，收到 JSON（httpPort、ips、suggestUrl）`,
+        );
+    });
+}
+
 server.listen(PORT, HOST, () => {
+    const lanIPv4List = getLanIPv4Addresses();
     console.log(`\n========================================`);
     console.log(`  Web 表格服务已启动`);
     console.log(`========================================`);
@@ -478,4 +541,5 @@ server.listen(PORT, HOST, () => {
         console.log(`  安全: 已启用 CORS，仅允许 Origin: ${CORS_ORIGIN}`);
     }
     console.log(`========================================\n`);
+    startDiscoveryUdp();
 });
