@@ -20,18 +20,18 @@ set "FOUND=0"
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr :%PORT% ^| findstr LISTENING') do (
     set "FOUND=1"
     taskkill /F /PID %%a >nul 2>&1
-    echo 已停止占用端口 %PORT% 的进程 (PID: %%a)
+    echo 已停止占用端口 %PORT% 的进程 ^(PID: %%a^)
 )
 
 :: 复查端口是否仍被占用
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr :%PORT% ^| findstr LISTENING') do (
-    echo [warn] 端口 %PORT% 仍被占用 (PID: %%a)，将强制结束...
+    echo [warn] 端口 %PORT% 仍被占用 ^(PID: %%a^)，将强制结束...
     taskkill /F /PID %%a >nul 2>&1
 )
 
 :: 再次复查（若仍占用，提示用管理员权限运行）
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr :%PORT% ^| findstr LISTENING') do (
-    echo [error] 端口 %PORT% 仍被占用 (PID: %%a)。请以“管理员身份运行” stop.bat 后重试。
+    echo [error] 端口 %PORT% 仍被占用 ^(PID: %%a^)。请以“管理员身份运行” stop.bat 后重试。
     echo         或手动执行: taskkill /F /PID %%a
 )
 
