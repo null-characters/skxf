@@ -13,7 +13,6 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.ImageButton
-import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -43,7 +42,6 @@ import java.util.Locale
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
-    private lateinit var statusIndicator: TextView
     
     private var pollJob: Job? = null
     private var snapshotJob: Job? = null
@@ -63,7 +61,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         webView = findViewById(R.id.webView)
-        statusIndicator = findViewById(R.id.statusIndicator)
         prepareWebView()
         findViewById<ImageButton>(R.id.btnSettings).setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
@@ -100,23 +97,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleLoadFailure(failUrl: String, desc: String) {
         isConnected = false
-        updateStatusIndicator()
         val prefs = getSharedPreferences(PrefKeys.FILE, MODE_PRIVATE)
         val json = prefs.getString(PrefKeys.OFFLINE_TABLE_JSON, "")?.trim().orEmpty()
         if (json.isNotBlank()) {
             showOfflinePage(json, prefs.getLong(PrefKeys.OFFLINE_SAVED_AT_MS, 0L))
         } else {
             showErrorPage(failUrl, desc)
-        }
-    }
-
-    private fun updateStatusIndicator() = runOnUiThread {
-        if (isConnected) {
-            statusIndicator.text = "● 同步中"
-            statusIndicator.setTextColor(Color.parseColor("#00FF88"))
-        } else {
-            statusIndicator.text = "● 离线中"
-            statusIndicator.setTextColor(Color.parseColor("#FFAA00"))
         }
     }
 
@@ -162,7 +148,6 @@ class MainActivity : AppCompatActivity() {
             Log.i(TAG, "服务端发现成功: $url")
             isConnected = true
             currentUrl = url
-            updateStatusIndicator()
             prefs.edit().putString(PrefKeys.LAST_GOOD_URL, url).apply()
             runOnUiThread { webView.loadUrl(url) }
             startSnapshotLoop(prefs, url)
@@ -174,7 +159,6 @@ class MainActivity : AppCompatActivity() {
             Log.w(TAG, "服务端发现失败，切换离线模式")
             isConnected = false
             currentUrl = null
-            updateStatusIndicator()
             val json = prefs.getString(PrefKeys.OFFLINE_TABLE_JSON, "")?.trim().orEmpty()
             if (json.isNotBlank()) {
                 runOnUiThread { showOfflinePage(json, prefs.getLong(PrefKeys.OFFLINE_SAVED_AT_MS, 0L)) }
