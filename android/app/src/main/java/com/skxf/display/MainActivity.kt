@@ -33,10 +33,10 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * 大屏显示主界面 - 持续轮询广播模式
+ * 大屏显示主界面 - 持续轮询广播模式（动态间隔优化）
  * 
  * 核心逻辑：
- * 1. 持续轮询 UDP 广播（5秒间隔）
+ * 1. 持续轮询 UDP 广播（动态间隔：离线5秒/同步10秒）
  * 2. 检测到广播 → 显示"同步中"，加载服务端页面
  * 3. 测不到广播 → 显示"离线中"，保持离线数据展示
  */
@@ -53,7 +53,9 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "SkxfDisplay"
-        private const val POLL_INTERVAL_MS = 5000L
+        private const val POLL_INTERVAL_ONLINE_MS = 10000L   // 同步中：10秒轮询
+        private const val POLL_INTERVAL_OFFLINE_MS = 5000L   // 离线中：5秒轮询（快速恢复）
+        private const val SNAPSHOT_INTERVAL_MS = 10000L      // 快照更新：10秒
         private const val DISCOVERY_TIMEOUT_MS = 2600
     }
 
@@ -133,7 +135,7 @@ class MainActivity : AppCompatActivity() {
     private fun startPolling() {
         pollJob?.cancel()
         pollJob = lifecycleScope.launch {
-            Log.i(TAG, "开始 UDP 广播轮询（间隔 ${POLL_INTERVAL_MS}ms）")
+            Log.i(TAG, "开始 UDP 广播轮询（动态间隔）")
             while (isActive) {
                 val prefs = getSharedPreferences(PrefKeys.FILE, MODE_PRIVATE)
                 val manualOnly = prefs.getBoolean(PrefKeys.MANUAL_ONLY, false)
@@ -147,7 +149,9 @@ class MainActivity : AppCompatActivity() {
                     if (result != null) handleDiscoverySuccess(result.url, prefs)
                     else handleDiscoveryFailure(prefs)
                 }
-                delay(POLL_INTERVAL_MS)
+                // 动态间隔：同步中10秒，离线中5秒
+                val interval = if (isConnected) POLL_INTERVAL_ONLINE_MS else POLL_INTERVAL_OFFLINE_MS
+                delay(interval)
             }
         }
     }
@@ -194,7 +198,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showNoServerPage() {
-        webView.loadDataWithBaseURL(null, "<html><head><meta charset='utf-8'/></head><body style='margin:0;background:#FF6633;color:#fff;font-family:sans-serif;padding:28px'><h2>● 离线中 - 未发现服务端</h2><p>持续搜索局域网看板服务...</p><p style='opacity:0.8;font-size:14px;margin-top:20px'>轮询: 5秒 | UDP端口: 39300</p></body></html>", "text/html", "UTF-8", null)
+        webView.loadDataWithBaseURL(null, "<html><head><meta charset='utf-8'/></head><body style='margin:0;background:#FF6633;color:#fff;font-family:sans-serif;padding:28px'><h2>● 离线中 - 未发现服务端</h2><p>持续搜索局域网看板服务...</p><p style='opacity:0.8;font-size:14px;margin-top:20px'>轮询: 5秒(离线)/10秒(同步) | UDP端口: 39300</p></body></html>", "text/html", "UTF-8", null)
     }
 
     private fun startSnapshotLoop(prefs: SharedPreferences, displayUrl: String) {
@@ -215,7 +219,7 @@ class MainActivity : AppCompatActivity() {
                         }
                     } catch (_: Exception) {}
                 }
-                delay(5000) // 每5秒更新一次快照
+                delay(SNAPSHOT_INTERVAL_MS)
             }
         }
     }
