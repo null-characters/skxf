@@ -1,6 +1,6 @@
 package com.skxf.display
 
-import org.json.JSONObject
+import android.util.Base64
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -30,8 +30,11 @@ object OfflinePageHtml {
     ): String {
         val safeSavedAt = escapeHtml(formatSavedAt(savedAtMs))
         val safeRetryApi = escapeHtml(retryApiUrl)
-        // JSON 需要安全注入到 JS，使用 quote 处理特殊字符
-        val safeJson = JSONObject.quote(tableJson) ?: "null"
+        // Base64 编码 JSON，避免换行符/特殊字符破坏 JS 代码
+        val jsonBase64 = Base64.encodeToString(
+            tableJson.ifBlank { "{}" }.toByteArray(Charsets.UTF_8),
+            Base64.NO_WRAP
+        )
         
         return """
 <!DOCTYPE html>
@@ -42,22 +45,23 @@ object OfflinePageHtml {
 <title>数据看板（离线）</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-::root{--brand:#FF5000;--glass-line:rgba(255,255,255,.28);--glass-fill:rgba(0,0,0,.18);--text:rgba(255,255,255,.96);--text-muted:rgba(255,248,240,.82)}
+:root{--brand:#FF5000;--grid-line:#6666FF;--text:rgba(255,255,255,.96);--text-muted:rgba(255,248,240,.82)}
 body{background:var(--brand);color:var(--text);font-family:'Microsoft YaHei',sans-serif;height:100vh;overflow:hidden;display:flex;flex-direction:column;padding:max(6px,env(safe-area-inset-top)) max(6px,env(safe-area-inset-right)) max(6px,env(safe-area-inset-bottom)) max(6px,env(safe-area-inset-left))}
 .safe{flex:1;min-width:0;min-height:0;overflow:hidden;display:flex;flex-direction:column;align-items:center}
 .safe-inner{flex:1;min-width:0;min-height:0;width:calc(100%/0.86);display:flex;flex-direction:column;transform:scale(.86);transform-origin:top center;margin-bottom:calc(-14%/.86*.86);height:calc(100%/.86)}
-.header{background:linear-gradient(180deg,rgba(0,0,0,.12),rgba(0,0,0,.06));padding:14px 24px;border-bottom:2px solid var(--glass-line);display:flex;align-items:center;justify-content:center;position:relative;flex-shrink:0}
-.header .time{font-size:15px;color:var(--text-muted);position:absolute;right:48px}
-.header h1{font-size:28px;font-weight:700;color:#fff;letter-spacing:.04em;text-align:center;width:100%}
+.header{background:linear-gradient(180deg,rgba(0,0,0,.12),rgba(0,0,0,.06));padding:14px 24px;border-bottom:2px solid rgba(255,255,255,.28);box-shadow:0 6px 24px rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center;position:relative;flex-shrink:0}
+.header .time{font-size:15px;font-weight:500;color:var(--text-muted);position:absolute;right:56px;letter-spacing:.02em;text-shadow:0 1px 3px rgba(0,0,0,.2)}
+.header h1{font-size:28px;font-weight:700;color:#fff;letter-spacing:.04em;text-align:center;width:100%;text-shadow:0 2px 12px rgba(0,0,0,.28)}
 .table-box{flex:1;min-height:0;padding:6px 0 2px;overflow:hidden;display:flex;flex-direction:column}
-.table-scroll{flex:1;min-height:0;overflow:hidden;border:1px solid var(--glass-line);border-radius:14px;background:var(--glass-fill);backdrop-filter:blur(10px)}
-table{width:100%;border-collapse:collapse;table-layout:fixed}
-th{padding:12px 10px;font-size:16px;font-weight:700;border-bottom:1px solid var(--glass-line);background:rgba(0,0,0,.22);color:#fff}
-td{padding:12px 10px;font-size:15px;border-bottom:1px solid rgba(255,255,255,.12);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-tr:nth-child(even) td{background:rgba(0,0,0,.1)}
-.cell-ok{color:#b9f6ca;font-weight:700}
-.cell-late{color:#ffcdd2;font-weight:700}
-.status{font-size:13px;padding:10px 18px;color:var(--text-muted);flex-shrink:0}
+.table-scroll{flex:1;min-width:0;min-height:0;overflow-x:auto;overflow-y:auto;-webkit-overflow-scrolling:touch}
+table{width:auto;min-width:100%;border-collapse:collapse;table-layout:auto;background:transparent}
+thead th{background:transparent;color:#fff8f0;font-size:14px;padding:10px 6px;border:1px dashed var(--grid-line);text-align:center;font-weight:700;white-space:nowrap;text-shadow:none}
+tbody td{font-size:14px;padding:8px 6px;border:1px dashed var(--grid-line);text-align:center;white-space:nowrap;color:var(--text);background:transparent}
+tbody tr:nth-child(even) td,tbody tr:nth-child(odd) td,tbody tr:hover td{background:transparent}
+tbody td:first-child{color:#fffde7;font-weight:700}
+.cell-ok{color:#00e676;font-weight:800;background:transparent!important;text-shadow:0 1px 2px rgba(0,0,0,.28)}
+.cell-late{color:#ff1744;font-weight:800;background:transparent!important;text-shadow:0 1px 2px rgba(0,0,0,.32)}
+.status{position:fixed;bottom:2px;left:max(14px,env(safe-area-inset-left),12px);font-size:11px;font-weight:500;color:var(--text-muted);text-shadow:0 1px 3px rgba(0,0,0,.35);pointer-events:none}
 .offline-meta{position:fixed;left:10px;top:10px;font-size:12px;color:var(--text-muted);background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:10px 12px;max-width:min(520px,70vw)}
 .offline-meta code{background:rgba(0,0,0,.22);padding:2px 6px;border-radius:6px}
 </style>
@@ -68,10 +72,11 @@ tr:nth-child(even) td{background:rgba(0,0,0,.1)}
 <div style="margin-top:4px;opacity:.9">服务端: <code>$safeRetryApi</code></div>
 </div>
 <script>
-const data=$safeJson;
+const data=JSON.parse(decodeURIComponent(escape(atob('$jsonBase64'))));
+const colWidths=(data&&Array.isArray(data.colWidths))?data.colWidths:[];
 let scrollIdx=0;
-function esc(s){return s?s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''}
-function statusCls(col,val){if(!col.includes('状态'))return'';const v=(val||'').trim();if(v==='正常')return'cell-ok';if(v==='延迟')return'cell-late';return''}
+function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''}
+function statusCls(col,val){if(!col.includes('状态'))return'';const v=String(val||'').trim();if(v==='正常')return'cell-ok';if(v==='延迟')return'cell-late';return''}
 function render(){
 const now=new Date();
 const time=now.toLocaleString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'});
@@ -80,7 +85,7 @@ const cols=(data&&Array.isArray(data.columns))?data.columns:[];
 const rows=(data&&Array.isArray(data.rows))?data.rows:[];
 const total=rows.length;
 let h='<div class="safe"><div class="safe-inner"><div class="header"><h1>'+esc(title)+'<\/h1><div class="time">'+time+'<\/div><\/div><div class="table-box"><div class="table-scroll"><table><thead><tr>';
-cols.forEach(c=>{h+='<th>'+esc(c)+'<\/th>'});
+cols.forEach((c,i)=>{const w=colWidths[i]?' style="min-width:'+colWidths[i]+'"':'';h+='<th'+w+'>'+esc(c)+'<\/th>'});
 h+='<\/tr><\/thead><tbody>';
 for(let i=0;i<$ROWS_PER_PAGE&&total>0;i++){
 const r=rows[(scrollIdx+i)%total];
