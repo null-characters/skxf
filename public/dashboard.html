@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>研发项目全景计划监控大屏</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; background: linear-gradient(135deg, #0a1628 0%, #1a2a4a 50%, #0d1f3c 100%); min-height: 100vh; color: #fff; }
+        .header { background: linear-gradient(90deg, rgba(0,150,255,0.1), rgba(0,100,200,0.2), rgba(0,150,255,0.1)); border-bottom: 2px solid rgba(0,150,255,0.3); padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 36px; font-weight: 700; background: linear-gradient(90deg, #00d4ff, #0099ff, #00d4ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 8px; }
+        .header-time { font-size: 28px; color: #00d4ff; font-weight: 600; }
+        .main-content { padding: 20px 30px; }
+        .stats-overview { display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px; margin-bottom: 20px; }
+        .stat-card { background: linear-gradient(145deg, rgba(0,50,100,0.6), rgba(0,30,60,0.8)); border: 1px solid rgba(0,150,255,0.2); border-radius: 12px; padding: 25px 20px; text-align: center; position: relative; }
+        .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, transparent, var(--color), transparent); }
+        .stat-card.total { --color: #00d4ff; }
+        .stat-card.progress { --color: #ffaa00; }
+        .stat-card.completed { --color: #00ff88; }
+        .stat-card.delayed { --color: #ff4466; }
+        .stat-card.notstarted { --color: #888899; }
+        .stat-number { font-size: 56px; font-weight: 700; color: var(--color); text-shadow: 0 0 20px var(--color); }
+        .stat-label { font-size: 18px; color: rgba(255,255,255,0.8); margin-top: 8px; letter-spacing: 2px; }
+        .two-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .panel { background: linear-gradient(145deg, rgba(0,40,80,0.5), rgba(0,20,40,0.7)); border: 1px solid rgba(0,150,255,0.2); border-radius: 12px; overflow: hidden; }
+        .panel-header { background: linear-gradient(90deg, rgba(0,100,200,0.3), rgba(0,50,100,0.2)); padding: 15px 25px; border-bottom: 1px solid rgba(0,150,255,0.2); display: flex; justify-content: space-between; align-items: center; }
+        .panel-title { font-size: 22px; font-weight: 600; color: #00d4ff; display: flex; align-items: center; gap: 10px; }
+        .panel-title::before { content: ''; width: 4px; height: 22px; background: #00d4ff; border-radius: 2px; }
+        .panel-body { padding: 20px; max-height: 380px; overflow-y: auto; }
+        .project-card { background: rgba(0,30,60,0.5); border: 1px solid rgba(0,150,255,0.15); border-radius: 10px; padding: 18px 20px; margin-bottom: 15px; }
+        .project-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .project-name { font-size: 20px; font-weight: 600; }
+        .project-level { padding: 4px 12px; border-radius: 20px; font-size: 14px; font-weight: 600; }
+        .level-A { background: linear-gradient(90deg, #ff4466, #ff6688); }
+        .level-Bplus { background: linear-gradient(90deg, #ff8844, #ffaa66); }
+        .level-B { background: linear-gradient(90deg, #44aaff, #66ccff); }
+        .level-Bminus { background: linear-gradient(90deg, #44ff88, #66ffaa); }
+        .level-C { background: linear-gradient(90deg, #888899, #aaaabb); }
+        .project-meta { display: flex; gap: 20px; font-size: 14px; color: rgba(255,255,255,0.6); margin-bottom: 12px; }
+        .progress-bar-container { background: rgba(0,0,0,0.3); border-radius: 10px; height: 24px; overflow: hidden; }
+        .progress-bar { height: 100%; border-radius: 10px; display: flex; align-items: center; justify-content: flex-end; padding-right: 10px; font-size: 14px; font-weight: 600; }
+        .progress-bar.high { background: linear-gradient(90deg, #00aa66, #00ff88); box-shadow: 0 0 15px rgba(0,255,136,0.4); }
+        .progress-bar.medium { background: linear-gradient(90deg, #ff8800, #ffaa00); box-shadow: 0 0 15px rgba(255,170,0,0.4); }
+        .progress-bar.low { background: linear-gradient(90deg, #ff4444, #ff6666); box-shadow: 0 0 15px rgba(255,68,68,0.4); }
+        .alert-card { background: linear-gradient(145deg, rgba(80,20,30,0.6), rgba(60,10,20,0.8)); border: 1px solid rgba(255,68,102,0.3); border-radius: 10px; padding: 18px 20px; margin-bottom: 12px; }
+        .alert-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .alert-project { font-size: 18px; font-weight: 600; color: #ff6688; }
+        .alert-badge { background: linear-gradient(90deg, #ff4466, #ff6688); padding: 4px 12px; border-radius: 20px; font-size: 14px; animation: blink 1.5s infinite; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+        .alert-content { font-size: 16px; color: rgba(255,255,255,0.9); margin-bottom: 8px; }
+        .alert-detail { font-size: 14px; color: rgba(255,255,255,0.6); }
+        .alert-detail span { color: #ffaa00; font-weight: 600; }
+        .task-card { background: rgba(0,50,80,0.4); border-left: 3px solid #ffaa00; padding: 15px 20px; margin-bottom: 12px; border-radius: 0 8px 8px 0; }
+        .task-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .task-project { font-size: 16px; font-weight: 600; color: #00d4ff; }
+        .task-phase { font-size: 14px; padding: 3px 10px; background: rgba(255,170,0,0.2); border-radius: 15px; color: #ffaa00; }
+        .task-content { font-size: 16px; color: #fff; margin-bottom: 8px; }
+        .task-meta { display: flex; gap: 20px; font-size: 14px; color: rgba(255,255,255,0.6); }
+        .task-meta span { color: #00d4ff; }
+        .full-width { grid-column: 1 / -1; }
+        .tasks-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
+        .footer { text-align: center; padding: 15px; font-size: 14px; color: rgba(255,255,255,0.4); border-top: 1px solid rgba(0,150,255,0.1); }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>研发项目全景计划监控大屏</h1>
+        <div class="header-time" id="currentTime"></div>
+    </div>
+    <div class="main-content">
+        <div class="stats-overview">
+            <div class="stat-card total"><div class="stat-number" id="totalProjects">0</div><div class="stat-label">项目总数</div></div>
+            <div class="stat-card progress"><div class="stat-number" id="inProgress">0</div><div class="stat-label">进行中</div></div>
+            <div class="stat-card completed"><div class="stat-number" id="completed">0</div><div class="stat-label">已完成</div></div>
+            <div class="stat-card delayed"><div class="stat-number" id="delayed">0</div><div class="stat-label">延期/风险</div></div>
+            <div class="stat-card notstarted"><div class="stat-number" id="notStarted">0</div><div class="stat-label">未启动</div></div>
+        </div>
+        <div class="two-columns">
+            <div class="panel"><div class="panel-header"><div class="panel-title">项目进度概览</div></div><div class="panel-body" id="projectProgress"></div></div>
+            <div class="panel"><div class="panel-header"><div class="panel-title">异常/风险预警</div><span style="color:#ff4466;font-size:16px" id="alertCount">0项</span></div><div class="panel-body" id="alertsList"></div></div>
+        </div>
+        <div class="panel full-width"><div class="panel-header"><div class="panel-title">当前进行任务</div><span style="color:#ffaa00;font-size:16px" id="taskCount">0项任务</span></div><div class="panel-body tasks-grid" id="currentTasks"></div></div>
+    </div>
+    <div class="footer">数据来源：研发项目看板2026.xlsx - 全景计划</div>
+    <script>
+        let data = [];
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+        }
+        function getLevelClass(level) {
+            if (level === 'A') return 'level-A';
+            if (level === 'B+') return 'level-Bplus';
+            if (level === 'B-') return 'level-Bminus';
+            if (level === 'B') return 'level-B';
+            return 'level-C';
+        }
+        function getProjects() {
+            const map = new Map();
+            data.forEach(item => {
+                if (!map.has(item['项目名称'])) {
+                    map.set(item['项目名称'], { name: item['项目名称'], applicant: item['申请人'], level: item['等级'], owner: item['负责人'], stages: [] });
+                }
+                map.get(item['项目名称']).stages.push(item);
+            });
+            return Array.from(map.values());
+        }
+        function render() {
+            const projects = getProjects();
+            let inProgress = 0, completed = 0, delayed = 0, notStarted = 0;
+            data.forEach(item => {
+                if (item['当前状态'] === '进行中') inProgress++;
+                else if (item['当前状态'] === '已完成') completed++;
+                else if (item['当前状态'] === '未启动') notStarted++;
+                if (item['风险状态'] === '延迟' || (item['延期天数'] && !isNaN(parseInt(item['延期天数'])))) delayed++;
+            });
+            document.getElementById('totalProjects').textContent = projects.length;
+            document.getElementById('inProgress').textContent = inProgress;
+            document.getElementById('completed').textContent = completed;
+            document.getElementById('delayed').textContent = delayed;
+            document.getElementById('notStarted').textContent = notStarted;
+            
+            // 项目进度
+            let progressHtml = '';
+            projects.forEach(p => {
+                const total = p.stages.length;
+                const done = p.stages.filter(s => s['当前状态'] === '已完成').length;
+                const pct = Math.round(done / total * 100);
+                const barClass = pct >= 80 ? 'high' : pct >= 50 ? 'medium' : 'low';
+                progressHtml += `<div class="project-card"><div class="project-header"><div class="project-name">${p.name}</div><div class="project-level ${getLevelClass(p.level)}">${p.level}</div></div><div class="project-meta"><span>负责人: ${p.owner}</span><span>申请人: ${p.applicant}</span></div><div class="progress-bar-container"><div class="progress-bar ${barClass}" style="width:${pct}%">${pct}%</div></div></div>`;
+            });
+            document.getElementById('projectProgress').innerHTML = progressHtml;
+            
+            // 异常预警
+            const alerts = data.filter(item => item['风险状态'] === '延迟' || (item['延期天数'] && !isNaN(parseInt(item['延期天数']))));
+            document.getElementById('alertCount').textContent = alerts.length + '项';
+            let alertHtml = '';
+            alerts.forEach(a => {
+                const days = a['延期天数'] && !isNaN(parseInt(a['延期天数'])) ? a['延期天数'] + '天' : '';
+                alertHtml += `<div class="alert-card"><div class="alert-header"><div class="alert-project">${a['项目名称']}</div><div class="alert-badge">延期</div></div><div class="alert-content">${a['项目阶段']} - ${a['当前项目任务'] || '无任务描述'}</div><div class="alert-detail">执行人: <span>${a['执行人'] || '-'}</span> ${days ? '延期: <span>' + days + '</span>' : ''}</div></div>`;
+            });
+            document.getElementById('alertsList').innerHTML = alertHtml || '<div style="text-align:center;padding:40px;color:rgba(255,255,255,0.5)">暂无异常</div>';
+            
+            // 当前任务
+            const tasks = data.filter(item => item['当前状态'] === '进行中' && item['当前项目任务']);
+            document.getElementById('taskCount').textContent = tasks.length + '项任务';
+            let taskHtml = '';
+            tasks.forEach(t => {
+                taskHtml += `<div class="task-card"><div class="task-header"><div class="task-project">${t['项目名称']}</div><div class="task-phase">${t['项目阶段']}</div></div><div class="task-content">${t['当前项目任务']}</div><div class="task-meta">执行人: <span>${t['执行人'] || '-'}</span></div></div>`;
+            });
+            document.getElementById('currentTasks').innerHTML = taskHtml || '<div style="text-align:center;padding:40px;color:rgba(255,255,255,0.5)">暂无进行中任务</div>';
+        }
+        async function loadData() {
+            try {
+                const res = await fetch('/data/全景计划_data.json');
+                data = await res.json();
+                render();
+            } catch (e) {
+                console.error('加载失败', e);
+            }
+        }
+        updateTime();
+        setInterval(updateTime, 1000);
+        loadData();
+    </script>
+</body>
+</html>
